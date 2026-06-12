@@ -1,13 +1,9 @@
-import { useRef, useState, useEffect } from "react";
 import {
   FaChartBar,
   FaUserShield,
   FaClipboardCheck,
-  FaCalendarAlt,
   FaExclamationTriangle,
-  FaShieldAlt,
   FaFileAlt,
-  FaMapMarkerAlt,
   FaGlobeAsia,
 } from "react-icons/fa";
 
@@ -17,29 +13,12 @@ const ALL_NAV = [
   { key: "staff-registry", label: "Staff Registry", icon: FaUserShield, roles: ["admin"] },
   { key: "guard-profiles", label: "Guard Profiles", icon: FaClipboardCheck, roles: ["admin", "supervisor"] },
   { key: "system-users", label: "System Access", icon: FaUserShield, roles: ["admin"] },
-  { key: "incidents", label: "Incident complaints", icon: FaExclamationTriangle, roles: ["admin", "supervisor", "guard"] },
-  { key: "circulars", label: "Circulars Board", icon: FaFileAlt, roles: ["admin", "supervisor", "guard"] },
-  { key: "correction-requests", label: "Correction Requests", icon: FaClipboardCheck, roles: ["admin", "supervisor"] },
+  { key: "incidents", label: "Incidents", icon: FaExclamationTriangle, roles: ["admin", "supervisor", "guard"] },
+  { key: "circulars", label: "Circulars", icon: FaFileAlt, roles: ["admin", "supervisor", "guard"] },
+  { key: "correction-requests", label: "Corrections", icon: FaClipboardCheck, roles: ["admin", "supervisor"] },
 ];
 
-function Sidebar({ role, page, onNavigate, onLogout }) {
-  const [showNav, setShowNav] = useState(true);
-  const lastScrollY = useRef(0);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const current = window.scrollY;
-      if (current > lastScrollY.current && current > 60) {
-        setShowNav(false);
-      } else {
-        setShowNav(true);
-      }
-      lastScrollY.current = current;
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
+function Sidebar({ role, page, onNavigate, isOpen, onClose }) {
   const navItems = ALL_NAV.filter((item) => item.roles.includes(role));
 
   return (
@@ -76,27 +55,63 @@ function Sidebar({ role, page, onNavigate, onLogout }) {
         </div>
       </div>
 
-      {/* Mobile bottom nav */}
+      {/* Mobile Drawer Overlay */}
       <div
-        className={`md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200/50 transition-transform duration-300 ${showNav ? "translate-y-0" : "translate-y-full"
-          }`}
-        style={{ background: "rgba(255,255,255,0.97)", backdropFilter: "blur(12px)" }}
+        className={`md:hidden fixed inset-0 bg-black/40 z-[70] backdrop-blur-sm transition-opacity duration-300 ${isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+
+      {/* Mobile Drawer */}
+      <div className={`md:hidden fixed inset-y-0 left-0 w-72 z-[80] transform transition-transform duration-300 ease-in-out flex flex-col`}
+        style={{
+          background: "linear-gradient(160deg, #f0f4ff 0%, #ffffff 100%)",
+          boxShadow: "4px 0 24px rgba(0,0,0,0.12)",
+          transform: isOpen ? "translateX(0)" : "translateX(-100%)",
+        }}
       >
-        <div className="flex justify-around items-center py-2">
-          {navItems.slice(0, 5).map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.key}
-                onClick={() => onNavigate(item.key)}
-                className={`flex flex-col items-center gap-1 px-2 py-1 text-xs ${page === item.key ? "text-blue-600" : "text-gray-500"
-                  }`}
-              >
-                <Icon className="text-lg" />
-                <span className="truncate max-w-[60px]">{item.label}</span>
-              </button>
-            );
-          })}
+        <div className="p-5 flex-1 flex flex-col overflow-y-auto">
+          {/* Drawer Header */}
+          <div className="flex justify-between items-center mb-8 pb-4 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-xl shadow-md">🛡️</div>
+              <div>
+                <h1 className="text-base font-bold text-gray-800">SecureSys</h1>
+                {role && (
+                  <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700 font-medium capitalize">{role}</span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-full transition"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Nav Items */}
+          <ul className="space-y-1 flex-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = page === item.key;
+              return (
+                <li
+                  key={item.key}
+                  onClick={() => {
+                    onNavigate(item.key);
+                    onClose();
+                  }}
+                  className={`cursor-pointer px-4 py-3.5 rounded-xl transition flex items-center gap-3 ${isActive
+                      ? "bg-blue-600 text-white shadow-md"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-white/80 font-medium"
+                    }`}
+                >
+                  <Icon className={`text-lg ${isActive ? "text-white" : "text-blue-500"}`} />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </div>
     </>
