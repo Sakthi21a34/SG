@@ -14,6 +14,7 @@ function Incidents({ role, guardId: currentGuardId }) {
   const [loading, setLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
+  const [lightboxImg, setLightboxImg] = useState(null);
   
   // Media states
   const [imageFile, setImageFile] = useState(null);
@@ -366,12 +367,12 @@ function Incidents({ role, guardId: currentGuardId }) {
           </div>
         )}
 
-        {/* TABLE */}
+        {/* INCIDENT CARDS */}
         {(role !== "guard" || showHistory) && (
-          <div className="glass-card rounded-2xl overflow-hidden">
+          <div>
             {role === "guard" && showHistory && (
-              <div className="px-6 py-4 border-b border-gray-50 flex items-center gap-4 bg-gray-50/50">
-                <button 
+              <div className="flex items-center gap-4 mb-5">
+                <button
                   onClick={() => setShowHistory(false)}
                   className="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-200 text-gray-600 hover:bg-gray-50 transition shrink-0"
                 >
@@ -383,88 +384,120 @@ function Incidents({ role, guardId: currentGuardId }) {
                 </div>
               </div>
             )}
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse min-w-[900px]">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  {role !== "guard" && <th className="text-left p-4 text-gray-600 font-semibold">Guard</th>}
-                  <th className="text-left p-4 text-gray-600 font-semibold">Type</th>
-                  <th className="text-left p-4 text-gray-600 font-semibold">Details</th>
-                  <th className="text-left p-4 text-gray-600 font-semibold">Status</th>
-                  <th className="text-left p-4 text-gray-600 font-semibold">Date</th>
-                  {role !== "guard" && <th className="text-left p-4 text-gray-600 font-semibold">Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {incidents.length === 0 ? (
-                  <tr>
-                    <td colSpan={role === "guard" ? 4 : 6} className="p-8 text-center text-gray-400">
-                      No incidents reported yet.
-                    </td>
-                  </tr>
-                ) : (
-                  incidents.map((incident) => (
-                    <tr key={incident.id} className="border-b hover:bg-gray-50 transition">
-                      {role !== "guard" && <td className="p-4 font-medium">{incident.guards?.name}</td>}
-                      <td className="p-4">
-                        <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
+
+            {incidents.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-400">
+                <div className="text-4xl mb-3">🗂️</div>
+                <p className="font-medium text-gray-500">No incidents reported yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {incidents.map((incident) => {
+                  const typeColor = {
+                    "Fire": "bg-red-100 text-red-700",
+                    "Theft": "bg-orange-100 text-orange-700",
+                    "Fight": "bg-pink-100 text-pink-700",
+                    "Suspicious Activity": "bg-yellow-100 text-yellow-700",
+                    "Emergency": "bg-rose-100 text-rose-700",
+                    "Visitor Issue": "bg-indigo-100 text-indigo-700",
+                  }[incident.incident_type] || "bg-gray-100 text-gray-700";
+
+                  const statusColor = {
+                    "Open": "bg-amber-100 text-amber-700",
+                    "Investigating": "bg-blue-100 text-blue-700",
+                    "Closed": "bg-emerald-100 text-emerald-700",
+                  }[incident.incident_status] || "bg-gray-100 text-gray-600";
+
+                  return (
+                    <div key={incident.id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow p-4 md:p-5 border border-gray-100">
+                      {/* Top row: guard name + type chip + status chip + date */}
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        {role !== "guard" && (
+                          <span className="font-semibold text-gray-800 text-sm">👮 {incident.guards?.name || "Unknown"}</span>
+                        )}
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${typeColor}`}>
                           {incident.incident_type}
                         </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="max-w-[250px]">
-                          <p className="text-sm text-gray-800 break-words line-clamp-2" title={incident.description}>{incident.description}</p>
-                          <div className="mt-2 flex items-center gap-2">
-                            {incident.audio_url && <AudioPlayer src={incident.audio_url} />}
-                            {incident.image_url && (
-                              <a href={incident.image_url} target="_blank" rel="noopener noreferrer" className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold shadow-sm hover:bg-blue-100 transition inline-flex items-center gap-1">
-                                <span>🖼️</span> View Photo
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold shadow-sm ${
-                          incident.incident_status === "Open" ? "bg-yellow-100 text-yellow-700" :
-                          incident.incident_status === "Investigating" ? "bg-blue-100 text-blue-700" :
-                          "bg-green-100 text-green-700"
-                        }`}>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${statusColor}`}>
                           {incident.incident_status}
                         </span>
-                      </td>
-                      <td className="p-4 text-xs text-gray-500 whitespace-nowrap">
-                        {new Date(incident.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                      </td>
-                      {role !== "guard" && (
-                        <td className="p-4">
-                          <div className="flex gap-2 items-center">
+                        <span className="ml-auto text-xs text-gray-400 whitespace-nowrap">
+                          🕐 {new Date(incident.created_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                        </span>
+                      </div>
+
+                      {/* Description */}
+                      {incident.description && (
+                        <p className="text-sm text-gray-700 leading-relaxed mb-3">{incident.description}</p>
+                      )}
+
+                      {/* Media & Actions row */}
+                      <div className="flex flex-wrap items-center gap-2 justify-between">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {incident.audio_url && <AudioPlayer src={incident.audio_url} />}
+                          {incident.image_url && (
+                            <button
+                              onClick={() => setLightboxImg(incident.image_url)}
+                              className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold hover:bg-blue-100 transition inline-flex items-center gap-1"
+                            >
+                              🖼️ View Photo
+                            </button>
+                          )}
+                        </div>
+
+                        {role !== "guard" && (
+                          <div className="flex items-center gap-2 ml-auto">
                             <select
                               value={incident.incident_status}
                               onChange={(e) => updateStatus(incident.id, e.target.value)}
-                              className="border border-gray-200 rounded-lg p-1.5 text-xs font-semibold focus:ring-2 focus:ring-blue-300 transition"
+                              className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-blue-300 transition bg-gray-50"
                             >
                               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
-                            <button 
+                            <button
                               onClick={() => downloadPdf(incident)}
-                              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm"
+                              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold transition flex items-center gap-1"
                               title="Download PDF Report"
                             >
                               📄 PDF
                             </button>
                           </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
         )}
       </div>
+
+      {/* Image Lightbox Overlay */}
+      {lightboxImg && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.85)" }}
+          onClick={() => setLightboxImg(null)}
+        >
+          <div
+            className="relative max-w-3xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setLightboxImg(null)}
+              className="absolute -top-10 right-0 text-white text-3xl font-bold hover:text-gray-300 transition"
+            >
+              ✕
+            </button>
+            <img
+              src={lightboxImg}
+              alt="Incident Evidence"
+              className="w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 }
