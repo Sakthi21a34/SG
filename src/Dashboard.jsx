@@ -42,8 +42,15 @@ function Dashboard({ role }) {
                   Logged in as: <span className="font-medium capitalize text-blue-600">{role || "user"}</span>
                 </p>
               </div>
-              <div className="flex items-center shrink-0">
+              <div className="flex items-center shrink-0 gap-3">
                 <Notifications role={role} onNavigate={setPage} />
+                <button
+                  onClick={handleLogout}
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition shadow-sm"
+                  title="Logout"
+                >
+                  <span className="text-lg">🚪</span>
+                </button>
               </div>
             </div>
           </div>

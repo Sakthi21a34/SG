@@ -833,6 +833,13 @@ function GuardDuty({ guardId, guardName }) {
                 </span>
               )}
               <Notifications role="guard" guardId={guardId} onNavigate={setActiveTab} />
+              <button
+                onClick={handleLogout}
+                className="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-sm shadow-sm hover:bg-red-100 transition shrink-0"
+                title="Logout"
+              >
+                🚪
+              </button>
             </div>
           </div>
         </header>
@@ -954,9 +961,16 @@ function GuardDuty({ guardId, guardName }) {
                 </div>
               )}
               <Notifications role="guard" guardId={guardId} onNavigate={setActiveTab} />
-              <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-xl">
+              <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-xl hidden lg:block">
                 {new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
               </div>
+              <button
+                onClick={handleLogout}
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition shadow-sm shrink-0"
+                title="Logout"
+              >
+                <span className="text-lg">🚪</span>
+              </button>
             </div>
           </header>
 
