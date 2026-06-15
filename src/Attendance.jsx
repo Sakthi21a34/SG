@@ -223,10 +223,10 @@ function Attendance({ role, userGuardId, hideHistory }) {
         setLoading(false);
         return;
       }
-      setGpsStatus("Location verified! Capturing selfie...");
       setCheckInCoords(loc);
       setCameraMode("checkin");
       setLoading(false);
+      setGpsStatus(null);
       setShowCamera(true);
     } catch (err) {
       showToast(err.message, "error");
@@ -305,9 +305,9 @@ function Attendance({ role, userGuardId, hideHistory }) {
           }
         }
       }
-      setGpsStatus("Location verified! Capture selfie to checkout.");
       setCameraMode("checkout");
       setLoading(false);
+      setGpsStatus(null);
       setShowCamera(true);
     } catch (err) {
       showToast(err.message, "error");
