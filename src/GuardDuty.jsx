@@ -7,6 +7,7 @@ import Incidents from "./Incidents";
 import { addToQueue, getQueue, removeFromQueue, setCached, getCached } from "./lib/offlineDb";
 import { useToast } from "./Toast";
 import { useLanguage } from "./LanguageContext";
+import LoadingOverlay from "./LoadingOverlay";
 
 /* ─── helpers ─────────────────────────────────────── */
 function fmt(iso) {
@@ -1290,10 +1291,11 @@ function GuardDuty({ guardId, guardName }) {
   return (
     <>
       <ToastContainer />
+      {loading && <LoadingOverlay message={gpsStatus || "Processing your request..."} />}
       {showCamera && (
         <Camera
           onCapture={cameraMode === "checkin" ? onCameraCapture : onCheckoutCapture}
-          onClose={() => { setShowCamera(false); setCameraMode(null); }}
+          onClose={() => { setShowCamera(false); setCameraMode(null); setLoading(false); setGpsStatus(null); }}
         />
       )}
 

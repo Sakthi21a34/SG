@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-lea
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { getLocation } from "./lib/geoUtils";
+import LoadingOverlay from "./LoadingOverlay";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -174,6 +175,7 @@ function DutyLocations() {
   return (
     <>
       <ToastContainer />
+      {loading && <LoadingOverlay message="Saving duty location..." />}
       {showMap && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowMap(false)}>
           <div className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-3xl mx-4" onClick={(e) => e.stopPropagation()}>

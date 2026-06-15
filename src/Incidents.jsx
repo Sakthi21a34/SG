@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
 import { addToQueue, getCached, setCached } from "./lib/offlineDb";
+import LoadingOverlay from "./LoadingOverlay";
 
 const INCIDENT_TYPES = ["Theft", "Fire", "Fight", "Suspicious Activity", "Emergency", "Visitor Issue"];
 const STATUS_OPTIONS = ["Open", "Investigating", "Closed"];
@@ -315,6 +316,7 @@ function Incidents({ role, guardId: currentGuardId }) {
   return (
     <>
       <ToastContainer />
+      {loading && <LoadingOverlay message="Submitting incident report..." />}
       <div className="mt-2">
 
         {/* GUARD REPORTING FORM */}

@@ -3,6 +3,7 @@ import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
 import Camera from "./Camera";
 import { calcDistance, getLocation, uploadPhoto } from "./lib/geoUtils";
+import LoadingOverlay from "./LoadingOverlay";
 
 function Attendance({ role, userGuardId, hideHistory }) {
   const [guards, setGuards] = useState([]);
@@ -335,7 +336,8 @@ function Attendance({ role, userGuardId, hideHistory }) {
   return (
     <>
       <ToastContainer />
-      {showCamera && <Camera onCapture={onCameraCapture} onClose={() => { setShowCamera(false); setCameraMode(null); }} />}
+      {loading && <LoadingOverlay message={gpsStatus || "Processing attendance..."} />}
+      {showCamera && <Camera onCapture={onCameraCapture} onClose={() => { setShowCamera(false); setCameraMode(null); setLoading(false); setGpsStatus(null); }} />}
       {previewPhoto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setPreviewPhoto(null)}>
           <div className="relative max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
 import ConfirmModal from "./ConfirmModal";
+import LoadingOverlay from "./LoadingOverlay";
 
 function AudioPlayer({ src }) {
   const [playing, setPlaying] = useState(false);
@@ -108,6 +109,7 @@ function CorrectionRequests({ role, guardId }) {
   return (
     <>
       <ToastContainer />
+      {loading && <LoadingOverlay message="Processing request..." />}
       <div className="mt-2">
         {role === "admin" && (
           <div className="flex justify-end mb-6">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
+import LoadingOverlay from "./LoadingOverlay";
 
 function Login({ setSession }) {
 
@@ -63,6 +64,7 @@ function Login({ setSession }) {
   return (
     <>
       <ToastContainer />
+      {loading && <LoadingOverlay message="Signing you in..." />}
       <div className="min-h-screen flex items-center justify-center p-4 sm:p-6" style={{ background: 'linear-gradient(135deg, #f0f4ff 0%, #faf5ff 50%, #f0f9ff 100%)' }}>
         <div className="glass-card rounded-2xl p-6 sm:p-10 w-full max-w-[420px] ring-1 ring-blue-200">
           <div className="text-center mb-8">

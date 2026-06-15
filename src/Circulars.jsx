@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
+import LoadingOverlay from "./LoadingOverlay";
 
 function Circulars({ role }) {
   const [circulars, setCirculars] = useState([]);
@@ -80,6 +81,7 @@ function Circulars({ role }) {
   return (
     <>
       <ToastContainer />
+      {loading && <LoadingOverlay message="Publishing circular..." />}
       <div className="mt-2">
 
         {/* Admin Broadcast Form */}

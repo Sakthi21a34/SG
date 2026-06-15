@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
 import ConfirmModal from "./ConfirmModal";
+import LoadingOverlay from "./LoadingOverlay";
 
 const STATUS_OPTIONS = ["Active", "Inactive"];
 const SHIFT_OPTIONS = ["Morning Shift", "Evening Shift", "Night Shift", "Full Day", "Custom"];
@@ -558,6 +559,7 @@ function Guards({ onGuardAdded }) {
   return (
     <>
       <ToastContainer />
+      {loading && <LoadingOverlay message="Saving guard details..." />}
       {confirmDelete && (
         <ConfirmModal
           message={`Delete "${confirmDelete.name}"?`}
