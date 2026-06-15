@@ -139,9 +139,9 @@ function CircularFeed({ guardId }) {
     }
     let query = supabase.from("circulars").select("*").order("created_at", { ascending: false });
     if (guardId) {
-      query = query.or(`guard_id.is.null,guard_id.eq.${guardId}`);
+      query = query.or(`is_broadcast.eq.true,guard_id.eq.${guardId}`);
     } else {
-      query = query.is("guard_id", null);
+      query = query.eq("is_broadcast", true);
     }
     query
       .then(({ data }) => {

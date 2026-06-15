@@ -100,6 +100,7 @@ function Shifts() {
         title: `New Shift Assigned – ${guardName}`,
         content: `⏰ Shift: ${shiftName}\n🕐 Time: ${sTime} → ${eTime}\n📍 Site: ${guardSite}\n\nPlease report on time.`,
         guard_id: guardId,
+        is_broadcast: false,
       }]);
 
       showToast("Shift assigned & guard notified!", "success");

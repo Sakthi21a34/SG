@@ -18,12 +18,13 @@ function Circulars({ role, userGuardId }) {
         .select("*")
         .order("created_at", { ascending: false });
 
-      // Non-admin users only see broadcast circulars (guard_id is null)
-      // or circulars specifically targeted to them
-      if (role !== "admin" && userGuardId) {
-        query = query.or(`guard_id.is.null,guard_id.eq.${userGuardId}`);
-      } else if (role !== "admin" && !userGuardId) {
-        query = query.is("guard_id", null);
+      // Non-admin users: show broadcast circulars OR circulars targeted to them
+      if (role !== "admin") {
+        if (userGuardId) {
+          query = query.or(`is_broadcast.eq.true,guard_id.eq.${userGuardId}`);
+        } else {
+          query = query.eq("is_broadcast", true);
+        }
       }
 
       const { data } = await query;
@@ -47,6 +48,7 @@ function Circulars({ role, userGuardId }) {
           title: title.trim(),
           content: content.trim(),
           created_by: user?.id,
+          is_broadcast: true,
         },
       ]);
       if (error) throw error;
