@@ -29,13 +29,13 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   const [permissionsGranted, setPermissionsGranted] = useState(
-    () => localStorage.getItem("sg_permissions_skipped") === "true"
+    () => localStorage.getItem("sg_permissions_skipped") === "true" || localStorage.getItem("sg_permissions_granted") === "true"
   );
   const [permissionError, setPermissionError] = useState("");
   const [requestingPerms, setRequestingPerms] = useState(false);
 
   async function checkPermissions() {
-    if (localStorage.getItem("sg_permissions_skipped") === "true") {
+    if (localStorage.getItem("sg_permissions_skipped") === "true" || localStorage.getItem("sg_permissions_granted") === "true") {
       setPermissionsGranted(true);
       return;
     }
@@ -83,6 +83,7 @@ function App() {
       }
 
       setPermissionsGranted(true);
+      localStorage.setItem("sg_permissions_granted", "true");
       localStorage.removeItem("sg_permissions_skipped");
     } catch (err) {
       console.error("Permission request failed", err);

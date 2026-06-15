@@ -4,6 +4,7 @@ import { useToast } from "./Toast";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { getLocation } from "./lib/geoUtils";
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -120,11 +121,14 @@ function DutyLocations() {
   }
 
   async function getCurrentLocation() {
-    if (!navigator.geolocation) { showToast("Geolocation not supported.", "error"); return; }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => { setLatitude(pos.coords.latitude.toFixed(6)); setLongitude(pos.coords.longitude.toFixed(6)); },
-      () => showToast("Could not get current location.", "error")
-    );
+    try {
+      const pos = await getLocation();
+      setLatitude(pos.lat.toFixed(6));
+      setLongitude(pos.lng.toFixed(6));
+      showToast("High-accuracy location acquired", "success");
+    } catch (err) {
+      showToast(err.message, "error");
+    }
   }
 
   useEffect(() => { fetchLocations(); }, []);
