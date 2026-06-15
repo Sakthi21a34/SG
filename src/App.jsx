@@ -28,6 +28,72 @@ function App() {
   const [guardName, setGuardName] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const [permissionsGranted, setPermissionsGranted] = useState(
+    () => localStorage.getItem("sg_permissions_skipped") === "true"
+  );
+  const [permissionError, setPermissionError] = useState("");
+  const [requestingPerms, setRequestingPerms] = useState(false);
+
+  async function checkPermissions() {
+    if (localStorage.getItem("sg_permissions_skipped") === "true") {
+      setPermissionsGranted(true);
+      return;
+    }
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        const geoStatus = await navigator.permissions.query({ name: "geolocation" });
+        let camStatusState = "prompt";
+        try {
+          const camStatus = await navigator.permissions.query({ name: "camera" });
+          camStatusState = camStatus.state;
+        } catch {
+          // Ignore if browser doesn't support camera querying
+        }
+        
+        if (geoStatus.state !== "granted" || camStatusState !== "granted") {
+          setPermissionsGranted(false);
+        } else {
+          setPermissionsGranted(true);
+        }
+      } else {
+        // Fallback for Safari/other browsers: check manually on click
+        setPermissionsGranted(false);
+      }
+    } catch {
+      setPermissionsGranted(false);
+    }
+  }
+
+  async function requestPermissions() {
+    setRequestingPerms(true);
+    setPermissionError("");
+    try {
+      // 1. Request GPS
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 8000 });
+      });
+
+      // 2. Request Camera
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(track => track.stop());
+      } catch (camErr) {
+        // If no camera exists (e.g. desktop admin), allow continuing if location was granted
+        console.warn("Camera request failed or not available", camErr);
+      }
+
+      setPermissionsGranted(true);
+      localStorage.removeItem("sg_permissions_skipped");
+    } catch (err) {
+      console.error("Permission request failed", err);
+      setPermissionError(
+        "Permissions request failed. Please check your browser address bar settings to allow Camera and Location (GPS) access for Safety Guard."
+      );
+    } finally {
+      setRequestingPerms(false);
+    }
+  }
+
   async function fetchRole(userId) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -57,6 +123,7 @@ function App() {
       if (session?.user) {
         setLoading(true);
         fetchRole(session.user.id);
+        checkPermissions();
       } else {
         setLoading(false);
       }
@@ -67,6 +134,7 @@ function App() {
       if (session?.user) {
         setLoading(true);
         fetchRole(session.user.id);
+        checkPermissions();
       } else {
         setLoading(false);
       }
@@ -94,6 +162,69 @@ function App() {
   }
 
   if (!session) return <Login setSession={setSession} />;
+
+  if (!permissionsGranted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-indigo-100 text-center animate-fade-in">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-indigo-50 flex items-center justify-center text-4xl shadow-inner text-indigo-600">
+            🛡️
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">Permissions Required</h2>
+          <p className="text-gray-500 text-sm mb-6 leading-relaxed">
+            Safety Guard requires access to your <strong>GPS Location</strong> and <strong>Camera</strong> to verify secure check-ins and attendance updates.
+          </p>
+
+          <div className="space-y-4 mb-8 text-left">
+            <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-gray-50 border border-gray-100">
+              <span className="text-2xl mt-0.5">📍</span>
+              <div>
+                <p className="font-bold text-gray-800 text-sm">GPS Location Access</p>
+                <p className="text-xs text-gray-500">Required to confirm you are within the assigned duty location area.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-gray-50 border border-gray-100">
+              <span className="text-2xl mt-0.5">📸</span>
+              <div>
+                <p className="font-bold text-gray-800 text-sm">Camera & Photo Upload</p>
+                <p className="text-xs text-gray-500">Required to upload check-in / check-out verification selfies.</p>
+              </div>
+            </div>
+          </div>
+
+          {permissionError && (
+            <div className="bg-red-50 text-red-700 text-xs p-3.5 rounded-2xl border border-red-150 mb-6 text-left leading-relaxed">
+              ⚠️ {permissionError}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={requestPermissions}
+              disabled={requestingPerms}
+              className={`w-full py-3.5 rounded-xl font-bold text-sm text-white shadow-lg transition ${
+                requestingPerms 
+                  ? "bg-gray-300 cursor-not-allowed" 
+                  : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-150"
+              }`}
+            >
+              {requestingPerms ? "Requesting Access..." : "Grant Permissions"}
+            </button>
+            <button
+              onClick={() => {
+                localStorage.setItem("sg_permissions_skipped", "true");
+                setPermissionsGranted(true);
+              }}
+              className="w-full py-3 rounded-xl font-bold text-xs text-gray-400 hover:text-gray-650 transition"
+            >
+              Skip & Continue Anyway
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (role === "guard" && guardId) {
     return (

@@ -84,8 +84,7 @@ function SystemAccess() {
   return (
     <>
       <ToastContainer />
-      <div className="mt-6">
-        <h1 className="text-2xl font-bold mb-5 text-gray-800">🛡️ Administrative Access Management</h1>
+      <div className="mt-2">
 
         <div className="glass-card rounded-2xl p-6 mb-8 ring-1 ring-cyan-200">
           <h2 className="text-xl font-semibold mb-4 text-gray-700">👤 Create Admin / Supervisor Login</h2>
@@ -144,7 +143,7 @@ function SystemAccess() {
                     <td className="p-4 font-medium">{user.full_name}</td>
                     <td className="p-4">{user.email}</td>
                     <td className="p-4">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${user.role === "admin" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                      <span className={`status-chip status-chip-${user.role}`}>
                         {user.role}
                       </span>
                     </td>

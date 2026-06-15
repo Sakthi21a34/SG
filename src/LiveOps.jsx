@@ -1,14 +1,44 @@
+import { useState } from "react";
 import MapView from "./MapView";
 import Attendance from "./Attendance";
 
 function LiveOps({ role }) {
+  const [view, setView] = useState("map"); // "map" or "checkin"
+
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
-      <div className="xl:sticky xl:top-8 self-start">
-        <MapView />
+    <div className="mt-2">
+      {/* Premium Toggle Switch in top-right */}
+      <div className="flex justify-end mb-6">
+        <div className="p-1 rounded-2xl inline-flex gap-1 shadow-sm border border-gray-100 bg-white/80 backdrop-blur-md">
+          <button
+            onClick={() => setView("map")}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-2 ${
+              view === "map"
+                ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                : "text-gray-500 hover:text-gray-800 hover:bg-gray-50/50"
+            }`}
+          >
+            🗺️ Live Map
+          </button>
+          <button
+            onClick={() => setView("checkin")}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center gap-2 ${
+              view === "checkin"
+                ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                : "text-gray-500 hover:text-gray-800 hover:bg-gray-50/50"
+            }`}
+          >
+            📋 Attendance
+          </button>
+        </div>
       </div>
-      <div>
-        <Attendance role={role} />
+
+      <div className="animate-fade-in">
+        {view === "map" ? (
+          <MapView />
+        ) : (
+          <Attendance role={role} />
+        )}
       </div>
     </div>
   );

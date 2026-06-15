@@ -108,12 +108,9 @@ function CorrectionRequests({ role, guardId }) {
   return (
     <>
       <ToastContainer />
-      <div className="mt-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800">
-            {role === "admin" ? "📥 Attendance Correction Requests" : "📋 Your Requests"}
-          </h2>
-          {role === "admin" && (
+      <div className="mt-2">
+        {role === "admin" && (
+          <div className="flex justify-end mb-6">
             <button
               onClick={() => setShowClearConfirm(true)}
               disabled={loading}
@@ -121,8 +118,8 @@ function CorrectionRequests({ role, guardId }) {
             >
               <span>🗑️</span> Clear History
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="glass-card rounded-2xl overflow-hidden ring-1 ring-amber-200">
           <div className="overflow-x-auto">
@@ -165,10 +162,7 @@ function CorrectionRequests({ role, guardId }) {
                         )}
                       </td>
                       <td className="p-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                          req.status === "Pending" ? "bg-amber-100 text-amber-700" :
-                          req.status === "Approved" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                        }`}>
+                        <span className={`status-chip status-chip-${req.status.toLowerCase()}`}>
                           {req.status}
                         </span>
                       </td>

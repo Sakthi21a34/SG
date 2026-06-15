@@ -27,26 +27,25 @@ function GuardProfiles() {
   const pending = total - fullyVerified;
 
   return (
-    <div className="mt-10">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">🛡️ Guard Profiles & Documents</h1>
+    <div className="mt-2">
 
       {/* Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
+        <div className="glass-card !mb-0 p-6 flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl">👥</div>
           <div>
             <p className="text-sm text-gray-500 font-semibold">Total Guards</p>
             <p className="text-2xl font-bold text-gray-800">{total}</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100 flex items-center gap-4">
+        <div className="glass-card !mb-0 p-6 flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl">✅</div>
           <div>
             <p className="text-sm text-gray-500 font-semibold">Fully Verified</p>
             <p className="text-2xl font-bold text-emerald-600">{fullyVerified}</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-amber-100 flex items-center gap-4">
+        <div className="glass-card !mb-0 p-6 flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xl">⏳</div>
           <div>
             <p className="text-sm text-gray-500 font-semibold">Pending Docs</p>
@@ -56,7 +55,7 @@ function GuardProfiles() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="glass-card overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
           <h2 className="font-bold text-gray-800 text-lg">Staff Directory</h2>
           <button onClick={fetchGuards} className="text-sm text-blue-600 font-semibold hover:underline">Refresh</button>
@@ -121,7 +120,7 @@ function GuardProfiles() {
                         {g.doc_certificates ? <span className="text-emerald-500 bg-emerald-50 w-8 h-8 rounded-full inline-flex items-center justify-center">✅</span> : <span className="text-gray-300 text-xs">—</span>}
                       </td>
                       <td className="p-4">
-                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${isVerified ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                        <span className={`status-chip ${isVerified ? "status-chip-approved" : "status-chip-pending"}`}>
                           {isVerified ? "Verified" : "Action Req."}
                         </span>
                       </td>

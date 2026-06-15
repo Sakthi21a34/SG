@@ -4,6 +4,9 @@ import Camera from "./Camera";
 import { calcDistance, getLocation, uploadPhoto } from "./lib/geoUtils";
 import Notifications from "./Notifications";
 import Incidents from "./Incidents";
+import { addToQueue, getQueue, removeFromQueue, setCached, getCached } from "./lib/offlineDb";
+import { useToast } from "./Toast";
+import { useLanguage } from "./LanguageContext";
 
 /* ─── helpers ─────────────────────────────────────── */
 function fmt(iso) {
@@ -55,6 +58,67 @@ function AudioPlayer({ src }) {
   );
 }
 
+/* ─── Language Dropdown ───────────────────────────── */
+function LanguageDropdown({ locale, setLocale, isMobile = false }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const languages = [
+    { code: "en", label: "English" },
+    { code: "hi", label: "हिंदी" },
+    { code: "ta", label: "தமிழ்" },
+    { code: "te", label: "తెలుగు" },
+    { code: "kn", label: "ಕನ್ನಡ" },
+  ];
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative flex items-center" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center justify-center font-bold shadow-sm transition shrink-0 ${
+          isMobile
+            ? "w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs"
+            : "w-10 h-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 text-sm"
+        }`}
+        title="Change Language"
+      >
+        {locale.toUpperCase() === 'EN' ? 'EN' : locale.toUpperCase()}
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-2 w-36 bg-white rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden z-50 py-1 origin-top-right">
+          {languages.map((lang) => (
+            <button
+              key={lang.code}
+              onClick={() => {
+                setLocale(lang.code);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                locale === lang.code
+                  ? "bg-blue-50 text-blue-700 font-bold border-l-2 border-blue-600"
+                  : "text-gray-700 hover:bg-gray-50 font-medium border-l-2 border-transparent"
+              }`}
+            >
+              {lang.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { key: "duty", label: "Duty Control", icon: "📍", desc: "Check In / Out" },
   { key: "history", label: "Attendance", icon: "📋", desc: "Your History" },
@@ -67,8 +131,20 @@ const TABS = [
 function CircularFeed() {
   const [items, setItems] = useState([]);
   useEffect(() => {
+    if (!navigator.onLine) {
+      const cached = getCached("circulars");
+      if (cached) setItems(cached);
+      return;
+    }
     supabase.from("circulars").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => setItems(data || []));
+      .then(({ data }) => {
+        setItems(data || []);
+        setCached("circulars", data || []);
+      })
+      .catch(() => {
+        const cached = getCached("circulars");
+        if (cached) setItems(cached);
+      });
   }, []);
   return (
     <div className="space-y-3">
@@ -99,9 +175,21 @@ function MyRequests({ guardId }) {
   const [reqs, setReqs] = useState([]);
   useEffect(() => {
     if (!guardId) return;
+    if (!navigator.onLine) {
+      const cached = getCached(`my_requests_${guardId}`);
+      if (cached) setReqs(cached);
+      return;
+    }
     supabase.from("attendance_requests").select("*").eq("guard_id", guardId)
       .order("created_at", { ascending: false })
-      .then(({ data }) => setReqs(data || []));
+      .then(({ data }) => {
+        setReqs(data || []);
+        setCached(`my_requests_${guardId}`, data || []);
+      })
+      .catch(() => {
+        const cached = getCached(`my_requests_${guardId}`);
+        if (cached) setReqs(cached);
+      });
   }, [guardId]);
   if (reqs.length === 0) return (
     <div className="flex flex-col items-center py-12 text-gray-300">
@@ -130,7 +218,7 @@ function MyRequests({ guardId }) {
 }
 
 /* ─── Guard Profile & Documents ─── */
-function GuardProfilePanel({ guardId, onClose }) {
+function GuardProfilePanel({ guardId, onClose, onSosPanic, sendingSos }) {
   const [profile, setProfile] = useState(null);
   const [uploading, setUploading] = useState("");
   const [error, setError] = useState("");
@@ -190,7 +278,21 @@ function GuardProfilePanel({ guardId, onClose }) {
           {error && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm">{error}</div>}
           
           {/* Profile Picture */}
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center relative">
+            {/* SOS panic button at top right of the profile box area */}
+            <button
+              type="button"
+              onClick={onSosPanic}
+              disabled={sendingSos}
+              className={`absolute top-0 right-0 w-11 h-11 rounded-full flex items-center justify-center text-xl shadow-md border transition-all active:scale-95 ${
+                sendingSos
+                  ? "bg-gray-150 border-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-red-50 hover:bg-red-105 border-red-100 text-red-650"
+              }`}
+              title="Trigger SOS Panic Alert"
+            >
+              {sendingSos ? "🚨" : "🆘"}
+            </button>
             <div className="relative w-24 h-24 rounded-full border-4 border-white shadow-lg bg-gray-100 overflow-hidden mb-3">
               {profile.profile_picture ? (
                 <img src={profile.profile_picture} alt="Profile" className="w-full h-full object-cover" />
@@ -250,10 +352,54 @@ function GuardProfilePanel({ guardId, onClose }) {
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════ */
 function GuardDuty({ guardId, guardName }) {
+  const { t, locale, setLocale } = useLanguage();
   const [activeTab, setActiveTab] = useState("duty");
   const [showRequestHistory, setShowRequestHistory] = useState(false);
   const [dutyLocation, setDutyLocation] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [sendingSos, setSendingSos] = useState(false);
+  const { showToast, ToastContainer } = useToast();
+
+  async function handleSosPanic() {
+    if (!confirm("Are you sure you want to trigger an emergency SOS panic alert?")) return;
+    setSendingSos(true);
+    try {
+      let lat = null;
+      let lng = null;
+      let locMsg = "Unknown GPS location (disabled/denied)";
+      
+      try {
+        const pos = await getLocation();
+        lat = pos.lat;
+        lng = pos.lng;
+        locMsg = `Latitude: ${pos.lat.toFixed(6)}, Longitude: ${pos.lng.toFixed(6)}`;
+      } catch (err) {
+        console.warn("Could not get GPS for SOS", err);
+      }
+
+      const assignedLoc = dutyLocation?.place_name || "No assigned site";
+      const detailedMessage = `GUARD IN EMERGENCY! Name: ${guardName}. Assigned Site: ${assignedLoc}. Current GPS coordinates: ${locMsg}.`;
+
+      // Insert notification for Admin
+      const { error: insErr } = await supabase.from("notifications").insert([{
+        user_role: "admin",
+        guard_id: guardId,
+        title: "🚨 SOS PANIC ALERT",
+        message: detailedMessage,
+        type: "error",
+        is_read: false
+      }]);
+
+      if (insErr) throw insErr;
+      
+      showToast("SOS Alert sent! Emergency services and administrators have been notified.", "success");
+    } catch (err) {
+      showToast("Failed to send SOS alert: " + err.message, "error");
+    } finally {
+      setSendingSos(false);
+    }
+  }
+
   const [gpsStatus, setGpsStatus] = useState(null);
   const [gpsType, setGpsType] = useState("info");
   const [showCamera, setShowCamera] = useState(false);
@@ -280,9 +426,177 @@ function GuardDuty({ guardId, guardName }) {
 
   const [isOnTempDuty, setIsOnTempDuty] = useState(false);
   const [primaryLocation, setPrimaryLocation] = useState(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  async function syncOfflineData() {
+    if (!navigator.onLine) return;
+    try {
+      const queue = await getQueue();
+      if (queue.length === 0) return;
+
+      setIsSyncing(true);
+      setStatus("🔄 Syncing offline records...", "info");
+
+      const tempIdMap = {};
+
+      for (const item of queue) {
+        try {
+          if (item.type === "checkin") {
+            const { tempId, guardId, dutyLocationId, photoData, lat, lng, timestamp } = item.data;
+            // Upload photo
+            const photoUrl = await uploadPhoto(guardId, photoData, supabase);
+            // Insert attendance
+            const { data, error: err } = await supabase.from("attendance").insert([{
+              guard_id: guardId,
+              duty_location_id: dutyLocationId,
+              check_in_time: timestamp,
+              status: "Present",
+              check_in_photo: photoUrl,
+              check_in_lat: lat,
+              check_in_long: lng,
+            }]).select();
+            if (err) throw err;
+            
+            const realId = data[0].id;
+            if (tempId) {
+              tempIdMap[tempId] = realId;
+            }
+            startLiveTracking(realId);
+          } else if (item.type === "checkout") {
+            const { attendanceId, photoData, lat, lng, timestamp } = item.data;
+            
+            let targetId = attendanceId;
+            if (typeof targetId === "string" && targetId.startsWith("temp_") && tempIdMap[targetId]) {
+              targetId = tempIdMap[targetId];
+            }
+            
+            // Upload photo
+            const photoUrl = await uploadPhoto(guardId, photoData, supabase);
+            // Update attendance
+            const { error: err } = await supabase.from("attendance").update({
+              check_out_time: timestamp,
+              check_out_photo: photoUrl,
+              check_out_lat: lat,
+              check_out_long: lng,
+            }).eq("id", targetId);
+            if (err) throw err;
+          } else if (item.type === "issue") {
+            const { guardId, requestType, message, audioBlob, timestamp } = item.data;
+            let audioUploadUrl = null;
+            if (audioBlob) {
+              let finalAudioBlob = audioBlob;
+              if (audioBlob instanceof ArrayBuffer) {
+                finalAudioBlob = new Blob([audioBlob], { type: "audio/webm" });
+              }
+              const fileName = `voice_${guardId}_${Date.now()}.webm`;
+              const { error: upErr } = await supabase.storage.from("voice-requests").upload(fileName, finalAudioBlob, { contentType: "audio/webm" });
+              if (!upErr) {
+                const { data } = supabase.storage.from("voice-requests").getPublicUrl(fileName);
+                audioUploadUrl = data.publicUrl;
+              } else throw upErr;
+            }
+            const { error: insErr } = await supabase.from("attendance_requests").insert([{
+              guard_id: guardId,
+              request_type: requestType,
+              message: message,
+              audio_url: audioUploadUrl,
+              status: "Pending",
+              created_at: timestamp
+            }]);
+            if (insErr) throw insErr;
+          } else if (item.type === "incident") {
+            const { guardId, incidentType, description, imageFileBlob, audioBlob, timestamp } = item.data;
+            let finalImageUrl = null;
+            let finalAudioUrl = null;
+
+            if (imageFileBlob) {
+              let finalImageBlob = imageFileBlob;
+              if (imageFileBlob instanceof ArrayBuffer) {
+                finalImageBlob = new Blob([imageFileBlob], { type: "image/jpeg" });
+              }
+              const imgName = `incident_${guardId}_${Date.now()}.jpg`;
+              const { error: imgErr } = await supabase.storage.from("guard-photos").upload(imgName, finalImageBlob);
+              if (!imgErr) {
+                const { data } = supabase.storage.from("guard-photos").getPublicUrl(imgName);
+                finalImageUrl = data.publicUrl;
+              } else throw imgErr;
+            }
+
+            if (audioBlob) {
+              let finalAudioBlob = audioBlob;
+              if (audioBlob instanceof ArrayBuffer) {
+                finalAudioBlob = new Blob([audioBlob], { type: "audio/webm" });
+              }
+              const audName = `incident_voice_${guardId}_${Date.now()}.webm`;
+              const { error: audErr } = await supabase.storage.from("voice-requests").upload(audName, finalAudioBlob, { contentType: "audio/webm" });
+              if (!audErr) {
+                const { data } = supabase.storage.from("voice-requests").getPublicUrl(audName);
+                finalAudioUrl = data.publicUrl;
+              } else throw audErr;
+            }
+
+            const { error } = await supabase.from("incidents").insert([
+              {
+                guard_id: guardId,
+                incident_type: incidentType,
+                description: description,
+                image_url: finalImageUrl,
+                audio_url: finalAudioUrl,
+                incident_status: "Open",
+                created_at: timestamp
+              },
+            ]);
+            if (error) throw error;
+          }
+
+          // Successfully synced, remove from local queue
+          await removeFromQueue(item.id);
+        } catch (itemErr) {
+          console.error("Failed to sync queue item:", item, itemErr);
+        }
+      }
+
+      setStatus("✅ Offline records synchronized successfully!", "success");
+      setTimeout(() => setGpsStatus(null), 3500);
+      fetchTodayStatus();
+      fetchAttendanceHistory();
+    } catch (err) {
+      console.error("Sync error:", err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      syncOfflineData();
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    syncOfflineData();
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   async function fetchAssignedLocation() {
     try {
+      if (!navigator.onLine) {
+        const cached = getCached(`assigned_location_${guardId}`);
+        if (cached) {
+          setDutyLocation(cached.dutyLocation);
+          setIsOnTempDuty(cached.isOnTempDuty);
+          setPrimaryLocation(cached.primaryLocation);
+        }
+        return;
+      }
+
       const { data } = await supabase
         .from("guards")
         .select(`
@@ -311,39 +625,98 @@ function GuardDuty({ guardId, guardName }) {
         today >= data.temp_location_from &&
         today <= data.temp_location_to;
 
+      let finalLoc = primary;
+      let finalIsTemp = false;
+
       if (hasTemp) {
         // Use temp location for GPS checks and attendance
-        setDutyLocation(data.temp_duty_location);
-        setIsOnTempDuty(true);
-      } else {
-        setDutyLocation(primary);
-        setIsOnTempDuty(false);
+        finalLoc = data.temp_duty_location;
+        finalIsTemp = true;
       }
-    } catch { /* ignore */ }
+      setDutyLocation(finalLoc);
+      setIsOnTempDuty(finalIsTemp);
+
+      setCached(`assigned_location_${guardId}`, {
+        dutyLocation: finalLoc,
+        isOnTempDuty: finalIsTemp,
+        primaryLocation: primary
+      });
+    } catch {
+      const cached = getCached(`assigned_location_${guardId}`);
+      if (cached) {
+        setDutyLocation(cached.dutyLocation);
+        setIsOnTempDuty(cached.isOnTempDuty);
+        setPrimaryLocation(cached.primaryLocation);
+      }
+    }
   }
   async function fetchAttendanceHistory() {
     try {
+      if (!navigator.onLine) {
+        const cached = getCached(`attendance_history_${guardId}`);
+        if (cached) setAttendanceHistory(cached);
+        return;
+      }
       const { data } = await supabase.from("attendance").select("*, duty_locations(place_name)").eq("guard_id", guardId).order("check_in_time", { ascending: false });
       setAttendanceHistory(data || []);
-    } catch { /* ignore */ }
+      setCached(`attendance_history_${guardId}`, data || []);
+    } catch {
+      const cached = getCached(`attendance_history_${guardId}`);
+      if (cached) setAttendanceHistory(cached);
+    }
   }
   async function fetchTodayStatus() {
     if (!guardId) return;
     try {
+      if (!navigator.onLine) {
+        const cached = getCached(`today_status_${guardId}`);
+        if (cached) {
+          setTodayRecord(cached.todayRecord);
+          setIsOnDuty(cached.isOnDuty);
+          setCurrentAttendanceId(cached.currentAttendanceId);
+          setOnDutySince(cached.onDutySince);
+        }
+        return;
+      }
       const today = new Date().toISOString().split("T")[0];
       const { data } = await supabase.from("attendance").select("*, duty_locations(place_name)").eq("guard_id", guardId).gte("check_in_time", today).lte("check_in_time", today + "T23:59:59").order("check_in_time", { ascending: false }).limit(1);
+      
+      let rec = null;
+      let active = false;
+      let attId = null;
+      let since = null;
+
       if (data && data.length > 0) {
-        const rec = data[0];
+        rec = data[0];
         setTodayRecord(rec);
         if (rec.check_in_photo && !rec.check_out_photo) {
-          setIsOnDuty(true); setCurrentAttendanceId(rec.id); setOnDutySince(rec.check_in_time);
-        } else {
-          setIsOnDuty(false); setCurrentAttendanceId(null); setOnDutySince(null);
+          active = true;
+          attId = rec.id;
+          since = rec.check_in_time;
         }
       } else {
-        setTodayRecord(null); setIsOnDuty(false);
+        setTodayRecord(null);
       }
-    } catch { /* ignore */ }
+
+      setIsOnDuty(active);
+      setCurrentAttendanceId(attId);
+      setOnDutySince(since);
+
+      setCached(`today_status_${guardId}`, {
+        todayRecord: rec,
+        isOnDuty: active,
+        currentAttendanceId: attId,
+        onDutySince: since
+      });
+    } catch {
+      const cached = getCached(`today_status_${guardId}`);
+      if (cached) {
+        setTodayRecord(cached.todayRecord);
+        setIsOnDuty(cached.isOnDuty);
+        setCurrentAttendanceId(cached.currentAttendanceId);
+        setOnDutySince(cached.onDutySince);
+      }
+    }
   }
 
   useEffect(() => {
@@ -408,6 +781,47 @@ function GuardDuty({ guardId, guardName }) {
     if (!dataUrl) { setError("Camera not available. Grant camera permission and try again."); setLoading(false); return; }
     setLoading(true);
     try {
+      if (!navigator.onLine) {
+        const tempId = "temp_" + Date.now();
+        const now = new Date().toISOString();
+        const pos = await getLocation();
+        
+        await addToQueue("checkin", {
+          tempId,
+          guardId,
+          dutyLocationId: dutyLocation?.id,
+          photoData: dataUrl,
+          lat: pos.lat,
+          lng: pos.lng,
+          timestamp: now
+        });
+
+        setIsOnDuty(true);
+        setCurrentAttendanceId(tempId);
+        setOnDutySince(now);
+
+        const localRecord = {
+          check_in_time: now,
+          status: "Present",
+          check_in_photo: dataUrl,
+          check_in_lat: pos.lat,
+          check_in_long: pos.lng
+        };
+        setTodayRecord(localRecord);
+
+        setCached(`today_status_${guardId}`, {
+          todayRecord: localRecord,
+          isOnDuty: true,
+          currentAttendanceId: tempId,
+          onDutySince: now
+        });
+
+        setStatus("💾 Check-in saved offline! Will sync when connected.", "success");
+        setTimeout(() => setGpsStatus(null), 3000);
+        setLoading(false);
+        return;
+      }
+
       setStatus("📸 Uploading photo...", "info");
       const photoUrl = await uploadPhoto(guardId, dataUrl, supabase);
       const now = new Date().toISOString();
@@ -434,7 +848,7 @@ function GuardDuty({ guardId, guardName }) {
       const pos = await getLocation();
       if (dutyLocation) {
         const dist = Math.round(calcDistance(pos.lat, pos.lng, dutyLocation.latitude, dutyLocation.longitude));
-        if (dist > dutyLocation.radius_meters) { setStatus(`⚠️ ${dist}m from duty zone. Move inside to check out.`, "warn"); setLoading(false); return; }
+        if (dist > dutyLocation.radius_meters) { setStatus(`⚠️ You are ${dist}m away. Move within ${dutyLocation.radius_meters}m of ${dutyLocation.place_name}.`, "warn"); setLoading(false); return; }
       }
       setStatus("✅ Location ok! Capture selfie to check out.", "success");
       setCameraMode("checkout"); setShowCamera(true);
@@ -446,6 +860,58 @@ function GuardDuty({ guardId, guardName }) {
     if (!dataUrl) { setError("Camera not available. Grant camera permission and try again."); setLoading(false); return; }
     setLoading(true);
     try {
+      if (!navigator.onLine) {
+        const pos = await getLocation();
+        const now = new Date().toISOString();
+
+        await addToQueue("checkout", {
+          attendanceId: currentAttendanceId,
+          photoData: dataUrl,
+          lat: pos.lat,
+          lng: pos.lng,
+          timestamp: now
+        });
+
+        stopLiveTracking();
+        setIsOnDuty(false);
+        setCurrentAttendanceId(null);
+        setOnDutySince(null);
+
+        const localRecord = {
+          ...todayRecord,
+          check_out_time: now,
+          check_out_photo: dataUrl,
+          check_out_lat: pos.lat,
+          check_out_long: pos.lng
+        };
+        setTodayRecord(localRecord);
+
+        setCached(`today_status_${guardId}`, {
+          todayRecord: localRecord,
+          isOnDuty: false,
+          currentAttendanceId: null,
+          onDutySince: null
+        });
+
+        // Also add to history list cache
+        const history = getCached(`attendance_history_${guardId}`) || [];
+        const newHistoryItem = {
+          id: "temp_hist_" + Date.now(),
+          check_in_time: todayRecord?.check_in_time || now,
+          check_out_time: now,
+          status: "Present",
+          duty_locations: { place_name: dutyLocation?.place_name || "Assigned Location" }
+        };
+        const updatedHistory = [newHistoryItem, ...history.filter(h => h.id !== currentAttendanceId)];
+        setAttendanceHistory(updatedHistory);
+        setCached(`attendance_history_${guardId}`, updatedHistory);
+
+        setStatus("💾 Check-out saved offline! Will sync when connected.", "success");
+        setTimeout(() => setGpsStatus(null), 3000);
+        setLoading(false);
+        return;
+      }
+
       setStatus("📸 Uploading checkout photo...", "info");
       const photoUrl = await uploadPhoto(guardId, dataUrl, supabase);
       const pos = await getLocation();
@@ -499,6 +965,35 @@ function GuardDuty({ guardId, guardName }) {
     if (!reqMessage.trim() && !audioBlob) { setError("Add a message or record a voice note."); return; }
     setSubmitting(true); setError("");
     try {
+      if (!navigator.onLine) {
+        await addToQueue("issue", {
+          guardId,
+          requestType: audioBlob ? "voice" : "text",
+          message: reqMessage.trim() || "Voice note submitted",
+          audioBlob: audioBlob || null,
+          timestamp: new Date().toISOString()
+        });
+
+        // Add locally to request history list cache so it shows in history panel immediately
+        const cachedRequests = getCached(`my_requests_${guardId}`) || [];
+        const newRequestItem = {
+          id: "temp_req_" + Date.now(),
+          request_type: audioBlob ? "voice" : "text",
+          message: reqMessage.trim() || "Voice note submitted",
+          audio_url: audioUrl || null,
+          status: "Pending",
+          created_at: new Date().toISOString()
+        };
+        const updatedRequests = [newRequestItem, ...cachedRequests];
+        setCached(`my_requests_${guardId}`, updatedRequests);
+
+        setStatus("💾 Request saved offline! Will sync when connected.", "success");
+        setReqMessage(""); setAudioBlob(null); setAudioUrl("");
+        setTimeout(() => setGpsStatus(null), 3000);
+        setSubmitting(false);
+        return;
+      }
+
       let audioUploadUrl = null;
       if (audioBlob) {
         const fileName = `voice_${guardId}_${Date.now()}.webm`;
@@ -541,12 +1036,12 @@ function GuardDuty({ guardId, guardName }) {
         <div className={`px-6 py-5 ${isOnDuty ? "bg-gradient-to-r from-emerald-500 to-teal-500" : "bg-gradient-to-r from-slate-700 to-slate-800"}`}>
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1">Status</p>
-              <p className="text-white font-bold text-xl">{isOnDuty ? "🟢 On Active Duty" : todayRecord ? "✅ Duty Complete" : "⏸️ Off Duty"}</p>
+              <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-1">{t("status")}</p>
+              <p className="text-white font-bold text-xl">{isOnDuty ? "🟢 " + t("on_active_duty") : todayRecord ? "✅ " + t("duty_complete") : "⏸️ " + t("off_duty")}</p>
             </div>
             {isOnDuty && elapsedTime && (
               <div className="text-right">
-                <p className="text-white/60 text-xs mb-1">Time on duty</p>
+                <p className="text-white/60 text-xs mb-1">{t("time_on_duty")}</p>
                 <p className="text-white font-mono font-bold text-xl">{elapsedTime}</p>
               </div>
             )}
@@ -566,14 +1061,14 @@ function GuardDuty({ guardId, guardName }) {
                     <span className="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full font-bold">TEMP</span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">Allowed radius: {dutyLocation.radius_meters}m</p>
+                <p className="text-xs text-gray-500 mt-0.5">{t("allowed_radius")}: {dutyLocation.radius_meters}m</p>
                 {isOnTempDuty && primaryLocation && (
                   <p className="text-xs text-amber-600 mt-1">Primary: {primaryLocation.place_name} (resumes after temp period)</p>
                 )}
                 {isOnDuty && gpsDistance !== null && (
                   <div className={`flex items-center gap-1.5 mt-1.5 text-xs font-semibold ${gpsDistance > dutyLocation.radius_meters ? "text-red-600" : "text-emerald-600"}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${gpsDistance > dutyLocation.radius_meters ? "bg-red-500" : "bg-emerald-500"}`} />
-                    {gpsDistance > dutyLocation.radius_meters ? "Outside zone" : "Inside zone"} — {gpsDistance}m from center
+                    {gpsDistance > dutyLocation.radius_meters ? t("outside_zone") : t("inside_zone")} — {gpsDistance}m from center
                   </div>
                 )}
               </div>
@@ -595,9 +1090,9 @@ function GuardDuty({ guardId, guardName }) {
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Processing...
+                {t("submitting")}
               </span>
-            ) : isOnDuty ? "📸  END DUTY" : "📍  START DUTY"}
+            ) : isOnDuty ? "📸  " + t("end_duty") : "📍  " + t("start_duty")}
           </button>
         </div>
       </div>
@@ -609,34 +1104,34 @@ function GuardDuty({ guardId, guardName }) {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <p className="text-sm font-bold text-gray-800">Live Tracking Active</p>
+                <p className="text-sm font-bold text-gray-800">{t("live_tracking_active")}</p>
               </div>
-              <p className="text-xs text-gray-400">Auto-pings every 5 minutes</p>
+              <p className="text-xs text-gray-400">{t("auto_pings")}</p>
             </div>
           </div>
           <button onClick={forceLocationPush} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2 rounded-xl font-semibold transition shadow-sm">
-            Ping Now
+            {t("ping_now")}
           </button>
         </div>
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Guard Details</p>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">{t("guard_details")}</p>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <p className="text-gray-400 text-xs mb-0.5">Name</p>
+            <p className="text-gray-400 text-xs mb-0.5">{t("name")}</p>
             <p className="font-semibold text-gray-800">{guardName || "—"}</p>
           </div>
           <div>
-            <p className="text-gray-400 text-xs mb-0.5">Today's Location</p>
+            <p className="text-gray-400 text-xs mb-0.5">{t("today_location")}</p>
             <div className="flex items-center gap-1.5">
               <p className="font-semibold text-gray-800">{dutyLocation?.place_name || "Not assigned"}</p>
               {isOnTempDuty && <span className="text-xs bg-amber-100 text-amber-600 px-1.5 rounded-full font-bold">TEMP</span>}
             </div>
           </div>
           <div className="col-span-2">
-            <p className="text-gray-400 text-xs mb-0.5">Today</p>
-            <p className="font-semibold text-gray-800">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+            <p className="text-gray-400 text-xs mb-0.5">{t("today")}</p>
+            <p className="font-semibold text-gray-800">{new Date().toLocaleDateString(locale === "en" ? "en-IN" : locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
           </div>
         </div>
       </div>
@@ -646,14 +1141,14 @@ function GuardDuty({ guardId, guardName }) {
   const historyPanel = (
     <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-50">
-        <h2 className="font-bold text-gray-800 text-lg">Attendance History</h2>
-        <p className="text-xs text-gray-400 mt-0.5">{attendanceHistory.length} records found</p>
+        <h2 className="font-bold text-gray-800 text-lg">{t("attendance_history")}</h2>
+        <p className="text-xs text-gray-400 mt-0.5">{attendanceHistory.length} {t("records_found")}</p>
       </div>
       <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
         {attendanceHistory.length === 0 ? (
           <div className="flex flex-col items-center py-16 text-gray-300">
             <span className="text-5xl mb-3">📋</span>
-            <p className="font-medium text-gray-400">No attendance records yet</p>
+            <p className="font-medium text-gray-400">{t("no_attendance")}</p>
           </div>
         ) : attendanceHistory.map(item => {
           const loc = item.duty_locations?.place_name;
@@ -710,7 +1205,7 @@ function GuardDuty({ guardId, guardName }) {
           ←
         </button>
         <div>
-          <h2 className="font-bold text-gray-800 text-lg">Past Requests</h2>
+          <h2 className="font-bold text-gray-800 text-lg">{t("past_requests")}</h2>
           <p className="text-xs text-gray-400 mt-0.5">Your submitted issue history</p>
         </div>
       </div>
@@ -723,20 +1218,20 @@ function GuardDuty({ guardId, guardName }) {
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-50 flex justify-between items-center">
           <div>
-            <h2 className="font-bold text-gray-800 text-lg">Report an Issue</h2>
+            <h2 className="font-bold text-gray-800 text-lg">{t("report_issue")}</h2>
             <p className="text-xs text-gray-400 mt-0.5">Missed check-in or GPS error? Let admin know.</p>
           </div>
           <button 
             onClick={() => setShowRequestHistory(true)}
             className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition"
           >
-            🕒 History
+            🕒 {t("history")}
           </button>
         </div>
         <div className="p-6">
           <form onSubmit={submitRequest} className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Describe the problem</label>
+              <label className="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">{t("describe_problem")}</label>
               <textarea
                 rows="4"
                 placeholder="e.g. GPS failed during checkout at 6 PM..."
@@ -747,7 +1242,7 @@ function GuardDuty({ guardId, guardName }) {
             </div>
 
             <div className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl p-5 text-center space-y-3">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Or record a voice note</p>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{t("or_record_voice")}</p>
               <button
                 type="button"
                 onClick={recording ? stopRecording : startRecording}
@@ -756,18 +1251,18 @@ function GuardDuty({ guardId, guardName }) {
               >
                 {recording ? "⏹️" : "🎙️"}
               </button>
-              <p className="text-xs text-gray-400">{recording ? "Recording… tap to stop" : "Tap mic to record"}</p>
+              <p className="text-xs text-gray-400">{recording ? t("recording") : t("tap_to_record")}</p>
               {audioUrl && (
                 <div className="flex flex-col items-center gap-2">
                   <audio src={audioUrl} controls className="w-full max-w-sm" />
-                  <button type="button" onClick={() => { setAudioBlob(null); setAudioUrl(""); }} className="text-xs text-red-500 hover:underline">Remove recording</button>
+                  <button type="button" onClick={() => { setAudioBlob(null); setAudioUrl(""); }} className="text-xs text-red-500 hover:underline">{t("remove_recording")}</button>
                 </div>
               )}
             </div>
 
             <button type="submit" disabled={submitting}
               className="w-full h-13 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold transition shadow-md shadow-blue-100">
-              {submitting ? "Submitting…" : "📤  Submit Request to Admin"}
+              {submitting ? t("submitting") : "📤  " + t("submit_request")}
             </button>
           </form>
         </div>
@@ -783,8 +1278,8 @@ function GuardDuty({ guardId, guardName }) {
     circulars: (
       <div className="space-y-4">
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-bold text-gray-800 text-lg">Official Announcements</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Broadcasts from your administration</p>
+          <h2 className="font-bold text-gray-800 text-lg">{t("official_announcements")}</h2>
+          <p className="text-xs text-gray-400 mt-0.5">{t("circulars_desc")}</p>
         </div>
         <CircularFeed />
       </div>
@@ -794,6 +1289,7 @@ function GuardDuty({ guardId, guardName }) {
   /* ══ RENDER ══════════════════════════════════════════════ */
   return (
     <>
+      <ToastContainer />
       {showCamera && (
         <Camera
           onCapture={cameraMode === "checkin" ? onCameraCapture : onCheckoutCapture}
@@ -801,7 +1297,14 @@ function GuardDuty({ guardId, guardName }) {
         />
       )}
 
-      {showProfile && <GuardProfilePanel guardId={guardId} onClose={() => setShowProfile(false)} />}
+      {showProfile && (
+        <GuardProfilePanel
+          guardId={guardId}
+          onClose={() => setShowProfile(false)}
+          onSosPanic={handleSosPanic}
+          sendingSos={sendingSos}
+        />
+      )}
 
       {/* ╔════════════════════════════════╗
           ║  MOBILE LAYOUT (< md)          ║
@@ -820,6 +1323,8 @@ function GuardDuty({ guardId, guardName }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* 🌐 Language Selector */}
+              <LanguageDropdown locale={locale} setLocale={setLocale} isMobile={true} />
               <button 
                 onClick={() => setShowProfile(true)}
                 className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-sm shadow-sm hover:bg-blue-100 transition"
@@ -836,7 +1341,7 @@ function GuardDuty({ guardId, guardName }) {
               <button
                 onClick={handleLogout}
                 className="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-sm shadow-sm hover:bg-red-100 transition shrink-0"
-                title="Logout"
+                title={t("logout")}
               >
                 🚪
               </button>
@@ -847,6 +1352,20 @@ function GuardDuty({ guardId, guardName }) {
         {/* Mobile content */}
         <main className="flex-1 overflow-y-auto pb-24">
           <div className="px-4 py-4 space-y-3">
+            {isOffline && (
+              <div className="bg-amber-500 text-white px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-between shadow-md shadow-amber-100 animate-pulse">
+                <span>⚠️ Working Offline Mode — Actions will sync automatically when online.</span>
+                <span className="bg-white/20 px-2 py-0.5 rounded-full">Offline</span>
+              </div>
+            )}
+            {isSyncing && (
+              <div className="bg-blue-600 text-white px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-between shadow-md shadow-blue-100">
+                <span className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Synchronizing pending records to database...
+                </span>
+              </div>
+            )}
             {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm font-medium">{error}</div>}
             {gpsStatus && <div className={`border px-4 py-3 rounded-2xl text-sm font-medium ${statusColour}`}>{gpsStatus}</div>}
             {content[activeTab]}
@@ -870,7 +1389,7 @@ function GuardDuty({ guardId, guardName }) {
                   {tab.icon}
                 </span>
                 <span className={`text-[10px] font-bold leading-tight ${activeTab === tab.key ? "text-blue-600" : "text-gray-400"}`}>
-                  {tab.label}
+                  {t(tab.key)}
                 </span>
               </button>
             ))}
@@ -933,8 +1452,8 @@ function GuardDuty({ guardId, guardName }) {
               >
                 <span className="text-xl">{tab.icon}</span>
                 <div>
-                  <p className="font-semibold text-sm">{tab.label}</p>
-                  <p className={`text-xs ${activeTab === tab.key ? "text-blue-200" : "text-gray-400"}`}>{tab.desc}</p>
+                  <p className="font-semibold text-sm">{t(tab.key)}</p>
+                  <p className={`text-xs ${activeTab === tab.key ? "text-blue-200" : "text-gray-400"}`}>{t(tab.key + "_desc")}</p>
                 </div>
               </button>
             ))}
@@ -948,26 +1467,28 @@ function GuardDuty({ guardId, guardName }) {
           <header className="bg-white border-b border-gray-100 shadow-sm px-8 py-4 flex items-center justify-between shrink-0 relative z-50">
             <div>
               <h2 className="font-bold text-gray-800 text-xl">
-                {TABS.find(t => t.key === activeTab)?.icon} {TABS.find(t => t.key === activeTab)?.label}
+                {TABS.find(tab => tab.key === activeTab)?.icon} {t(activeTab)}
               </h2>
-              <p className="text-xs text-gray-400 mt-0.5">{TABS.find(t => t.key === activeTab)?.desc}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t(activeTab + "_desc")}</p>
             </div>
             <div className="flex items-center gap-3">
               {isOnDuty && (
                 <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl">
                   <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                   <span className="text-emerald-700 font-mono font-bold text-sm">{elapsedTime}</span>
-                  <span className="text-emerald-600 text-xs">on duty</span>
+                  <span className="text-emerald-600 text-xs">{t("on_active_duty")}</span>
                 </div>
               )}
               <Notifications role="guard" guardId={guardId} onNavigate={setActiveTab} />
               <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-xl hidden lg:block">
                 {new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
               </div>
+              {/* 🌐 Language Selector */}
+              <LanguageDropdown locale={locale} setLocale={setLocale} isMobile={false} />
               <button
                 onClick={handleLogout}
                 className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition shadow-sm shrink-0"
-                title="Logout"
+                title={t("logout")}
               >
                 <span className="text-lg">🚪</span>
               </button>
@@ -977,6 +1498,20 @@ function GuardDuty({ guardId, guardName }) {
           {/* Desktop scrollable content */}
           <main className="flex-1 overflow-y-auto">
             <div className="max-w-3xl mx-auto px-8 py-8 space-y-4">
+              {isOffline && (
+                <div className="bg-amber-500 text-white px-5 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-between shadow-md shadow-amber-100 animate-pulse">
+                  <span>⚠️ You are currently offline. Changes are saved locally and will auto-sync once internet is restored.</span>
+                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs">Offline Active</span>
+                </div>
+              )}
+              {isSyncing && (
+                <div className="bg-blue-600 text-white px-5 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-between shadow-md shadow-blue-100">
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Synchronizing offline records to Supabase...
+                  </span>
+                </div>
+              )}
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-5 py-3.5 rounded-2xl text-sm font-medium">
                   {error}

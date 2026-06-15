@@ -6,6 +6,7 @@ import {
   FaFileAlt,
   FaGlobeAsia,
 } from "react-icons/fa";
+import { useLanguage } from "./LanguageContext";
 
 const ALL_NAV = [
   { key: "dashboard", label: "Dashboard", icon: FaChartBar, roles: ["admin", "supervisor", "guard"] },
@@ -19,12 +20,13 @@ const ALL_NAV = [
 ];
 
 function Sidebar({ role, page, onNavigate, isOpen, onClose }) {
+  const { t } = useLanguage();
   const navItems = ALL_NAV.filter((item) => item.roles.includes(role));
 
   return (
     <>
       {/* Desktop sidebar */}
-      <div className="hidden md:flex md:flex-col w-64 glass-sidebar shadow-lg">
+      <div className="hidden md:flex md:flex-col w-64 h-screen sticky top-0 shrink-0 glass-sidebar shadow-lg">
         <div className="p-5 flex-1 flex flex-col">
           <div className="mb-8 text-center">
             <div className="text-3xl mb-1">🛡️</div>
@@ -47,7 +49,7 @@ function Sidebar({ role, page, onNavigate, isOpen, onClose }) {
                     }`}
                 >
                   <Icon className="text-lg" />
-                  <span>{item.label}</span>
+                  <span>{t(item.key)}</span>
                 </li>
               );
             })}
@@ -107,7 +109,7 @@ function Sidebar({ role, page, onNavigate, isOpen, onClose }) {
                     }`}
                 >
                   <Icon className={`text-lg ${isActive ? "text-white" : "text-blue-500"}`} />
-                  <span className="text-sm font-medium">{item.label}</span>
+                  <span className="text-sm font-medium">{t(item.key)}</span>
                 </li>
               );
             })}

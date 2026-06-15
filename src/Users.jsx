@@ -169,7 +169,7 @@ function Users() {
                       <td className="p-4 font-medium">{user.full_name}</td>
                       <td className="p-4">{user.email}</td>
                       <td className="p-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium capitalize ${user.role === "admin" ? "bg-purple-100 text-purple-700" : user.role === "supervisor" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
+                        <span className={`status-chip status-chip-${user.role}`}>
                           {user.role}
                         </span>
                       </td>

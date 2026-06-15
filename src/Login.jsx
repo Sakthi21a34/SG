@@ -63,8 +63,8 @@ function Login({ setSession }) {
   return (
     <>
       <ToastContainer />
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #f0f4ff 0%, #faf5ff 50%, #f0f9ff 100%)' }}>
-        <div className="glass-card rounded-2xl p-10 w-[420px] ring-1 ring-blue-200">
+      <div className="min-h-screen flex items-center justify-center p-4 sm:p-6" style={{ background: 'linear-gradient(135deg, #f0f4ff 0%, #faf5ff 50%, #f0f9ff 100%)' }}>
+        <div className="glass-card rounded-2xl p-6 sm:p-10 w-full max-w-[420px] ring-1 ring-blue-200">
           <div className="text-center mb-8">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-3xl shadow-lg">🛡️</div>
             <h1 className="text-3xl font-bold text-gray-800">Welcome Back</h1>

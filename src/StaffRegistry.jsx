@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Guards from "./Guards";
 import DutyLocations from "./DutyLocations";
-import Shifts from "./Shifts";
 
 function StaffRegistry() {
   const [activeTab, setActiveTab] = useState("guards");
@@ -25,20 +24,11 @@ function StaffRegistry() {
         >
           📍 Duty Locations
         </button>
-        <button
-          onClick={() => setActiveTab("shifts")}
-          className={`flex-1 md:flex-initial px-5 py-3 rounded-lg text-sm font-semibold transition whitespace-nowrap ${
-            activeTab === "shifts" ? "bg-indigo-600 text-white shadow-md" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
-          }`}
-        >
-          🗓️ Shift Scheduling
-        </button>
       </div>
 
       <div className="transition-all duration-300">
         {activeTab === "guards" && <Guards />}
         {activeTab === "locations" && <DutyLocations />}
-        {activeTab === "shifts" && <Shifts />}
       </div>
     </div>
   );

@@ -80,8 +80,7 @@ function Circulars({ role }) {
   return (
     <>
       <ToastContainer />
-      <div className="mt-6">
-        <h2 className="text-xl font-bold mb-4 text-gray-800">📢 Official Announcements & Circulars</h2>
+      <div className="mt-2">
 
         {/* Admin Broadcast Form */}
         {role === "admin" && (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -11,6 +11,16 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
+
+function ChangeMapView({ coords }) {
+  const map = useMap();
+  useEffect(() => {
+    if (coords && coords[0] && coords[1]) {
+      map.setView(coords, 16);
+    }
+  }, [coords, map]);
+  return null;
+}
 
 function DutyLocations() {
   const [locations, setLocations] = useState([]);
@@ -24,6 +34,34 @@ function DutyLocations() {
   const [mapLat, setMapLat] = useState("");
   const [mapLng, setMapLng] = useState("");
   const { showToast, ToastContainer } = useToast();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  async function handleSearchLocation() {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      setSearchResults(data || []);
+      if (data && data.length > 0) {
+        const first = data[0];
+        setMapLat(parseFloat(first.lat).toFixed(6));
+        setMapLng(parseFloat(first.lon).toFixed(6));
+        if (!placeName) {
+          setPlaceName(first.display_name.split(",")[0]);
+        }
+      } else {
+        showToast("No locations found.", "error");
+      }
+    } catch {
+      showToast("Error searching location.", "error");
+    } finally {
+      setSearching(false);
+    }
+  }
 
   async function fetchLocations() {
     try {
@@ -109,12 +147,53 @@ function DutyLocations() {
           <div className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-3xl mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center px-5 py-3 border-b">
               <h3 className="font-semibold text-gray-700">📍 Select Location on Map</h3>
-              <button onClick={() => setShowMap(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+              <button onClick={() => { setShowMap(false); setSearchResults([]); setSearchQuery(""); }} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
             </div>
+            
+            {/* Search Bar */}
+            <div className="p-3 bg-gray-50 border-b border-gray-100 flex gap-2">
+              <input
+                type="text"
+                placeholder="Search place name (e.g. Koyambedu, Chennai)..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleSearchLocation()}
+                className="flex-1 h-10 border border-gray-300 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white text-sm"
+              />
+              <button
+                onClick={handleSearchLocation}
+                disabled={searching}
+                className="h-10 px-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition text-sm font-semibold shadow-sm shrink-0"
+              >
+                {searching ? "Searching..." : "🔍 Search"}
+              </button>
+            </div>
+
+            {/* Suggestions list */}
+            {searchResults.length > 0 && (
+              <div className="max-h-28 overflow-y-auto bg-white border-b border-gray-200 divide-y text-xs text-gray-700">
+                {searchResults.slice(0, 5).map((result, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      setMapLat(parseFloat(result.lat).toFixed(6));
+                      setMapLng(parseFloat(result.lon).toFixed(6));
+                      setPlaceName(result.display_name.split(",")[0]);
+                      setSearchResults([]);
+                    }}
+                    className="p-2.5 hover:bg-emerald-50 cursor-pointer transition truncate"
+                  >
+                    📍 {result.display_name}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ height: "400px" }}>
               <MapContainer center={[parseFloat(mapLat) || 13.0827, parseFloat(mapLng) || 80.2707]} zoom={15} className="w-full h-full">
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapClickHandler />
+                <ChangeMapView coords={[parseFloat(mapLat) || 13.0827, parseFloat(mapLng) || 80.2707]} />
                 {mapLat && mapLng && <Marker position={[parseFloat(mapLat), parseFloat(mapLng)]} />}
               </MapContainer>
             </div>

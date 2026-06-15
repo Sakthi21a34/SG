@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
+import { addToQueue, getCached, setCached } from "./lib/offlineDb";
 
 const INCIDENT_TYPES = ["Theft", "Fire", "Fight", "Suspicious Activity", "Emergency", "Visitor Issue"];
 const STATUS_OPTIONS = ["Open", "Investigating", "Closed"];
@@ -53,6 +54,11 @@ function Incidents({ role, guardId: currentGuardId }) {
 
   async function fetchIncidents() {
     try {
+      if (!navigator.onLine) {
+        const cached = getCached(`incidents_${role}_${currentGuardId}`);
+        if (cached) setIncidents(cached);
+        return;
+      }
       let query = supabase
         .from("incidents")
         .select(`*, guards(name)`)
@@ -64,8 +70,11 @@ function Incidents({ role, guardId: currentGuardId }) {
 
       const { data } = await query;
       setIncidents(data || []);
+      setCached(`incidents_${role}_${currentGuardId}`, data || []);
     } catch {
-      showToast("Could not load incidents.", "error");
+      const cached = getCached(`incidents_${role}_${currentGuardId}`);
+      if (cached) setIncidents(cached);
+      else showToast("Could not load incidents.", "error");
     }
   }
 
@@ -82,6 +91,42 @@ function Incidents({ role, guardId: currentGuardId }) {
     if (!validate()) return;
     setLoading(true);
     try {
+      if (!navigator.onLine) {
+        await addToQueue("incident", {
+          guardId: currentGuardId,
+          incidentType,
+          description: description.trim() || "Reported with media",
+          imageFileBlob: imageFile || null,
+          audioBlob: audioBlob || null,
+          timestamp: new Date().toISOString()
+        });
+
+        const cached = getCached(`incidents_${role}_${currentGuardId}`) || [];
+        const localPreviewUrl = imagePreview || null;
+        const localAudioUrl = audioUrl || null;
+        const newIncident = {
+          id: "temp_inc_" + Date.now(),
+          guard_id: currentGuardId,
+          incident_type: incidentType,
+          description: description.trim() || "Reported with media",
+          image_url: localPreviewUrl,
+          audio_url: localAudioUrl,
+          incident_status: "Open",
+          created_at: new Date().toISOString(),
+          guards: { name: "You" }
+        };
+        const updatedIncidents = [newIncident, ...cached];
+        setIncidents(updatedIncidents);
+        setCached(`incidents_${role}_${currentGuardId}`, updatedIncidents);
+
+        showToast("Incident report saved offline! Will sync when connected.", "success");
+        setIncidentType(""); setDescription("");
+        setImageFile(null); setImagePreview("");
+        setAudioBlob(null); setAudioUrl("");
+        setLoading(false);
+        return;
+      }
+
       let finalImageUrl = null;
       let finalAudioUrl = null;
 
@@ -270,8 +315,7 @@ function Incidents({ role, guardId: currentGuardId }) {
   return (
     <>
       <ToastContainer />
-      <div className="mt-10">
-        <h1 className="text-2xl font-bold mb-5 text-gray-800">🚨 Incident Complaints</h1>
+      <div className="mt-2">
 
         {/* GUARD REPORTING FORM */}
         {role === "guard" && !showHistory && (

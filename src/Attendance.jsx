@@ -4,7 +4,7 @@ import { useToast } from "./Toast";
 import Camera from "./Camera";
 import { calcDistance, getLocation, uploadPhoto } from "./lib/geoUtils";
 
-function Attendance({ role, userGuardId }) {
+function Attendance({ role, userGuardId, hideHistory }) {
   const [guards, setGuards] = useState([]);
   const [records, setRecords] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -21,9 +21,113 @@ function Attendance({ role, userGuardId }) {
   const [gpsStatus, setGpsStatus] = useState(null);
   const trackingRef = useRef(null);
   const [previewPhoto, setPreviewPhoto] = useState(null);
+  const [filterGuard, setFilterGuard] = useState("");
+  const [filterLocation, setFilterLocation] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
   const { showToast, ToastContainer } = useToast();
 
   const isAbsent = status === "Absent";
+
+  const filteredRecords = records.filter(item => {
+    const matchesGuard = filterGuard ? String(item.guard_id) === String(filterGuard) : true;
+    const matchesLocation = filterLocation ? String(item.duty_location_id) === String(filterLocation) : true;
+    const matchesStatus = filterStatus ? item.status === filterStatus : true;
+    const recordDate = item.check_in_time?.split("T")[0] || item.date || "";
+    const matchesStartDate = filterStartDate ? recordDate >= filterStartDate : true;
+    const matchesEndDate = filterEndDate ? recordDate <= filterEndDate : true;
+    return matchesGuard && matchesLocation && matchesStatus && matchesStartDate && matchesEndDate;
+  });
+
+  function downloadReportCSV() {
+    if (filteredRecords.length === 0) {
+      showToast("No records to export.", "error");
+      return;
+    }
+    const headers = ["Guard", "Date", "Location", "Check In", "Check Out", "Status"];
+    const rows = filteredRecords.map(r => [
+      r.guards?.name || "Unknown",
+      r.check_in_time?.split("T")[0] || r.date || "—",
+      r.duty_locations?.place_name || "—",
+      r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : r.check_in || "—",
+      r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : r.check_out || "—",
+      r.status
+    ]);
+    const csvContent = [headers, ...rows].map(e => e.map(val => `"${val.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Attendance_Report_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function printReport() {
+    if (filteredRecords.length === 0) {
+      showToast("No records to print.", "error");
+      return;
+    }
+    const printWindow = window.open("", "_blank");
+    const todayStr = new Date().toLocaleDateString();
+    
+    const rowsHtml = filteredRecords.map(r => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${r.guards?.name || "Unknown"}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${r.check_in_time?.split("T")[0] || r.date || "—"}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${r.duty_locations?.place_name || "—"}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : r.check_in || "—"}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd;">${r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : r.check_out || "—"}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: bold;">${r.status}</td>
+      </tr>
+    `).join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Attendance Report - ${todayStr}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 30px; color: #333; }
+            h1 { color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; }
+            .meta { margin-bottom: 20px; font-size: 14px; color: #555; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th { background-color: #f3f4f6; padding: 10px; text-align: left; border-bottom: 2px solid #ddd; }
+          </style>
+        </head>
+        <body>
+          <h1>Attendance Management Report</h1>
+          <div class="meta">
+            <p><strong>Date Generated:</strong> ${todayStr}</p>
+            <p><strong>Total Records:</strong> ${filteredRecords.length}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Guard</th>
+                <th>Date</th>
+                <th>Location</th>
+                <th>Check In</th>
+                <th>Check Out</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 250);
+  }
 
   async function fetchGuards() {
     try {
@@ -240,8 +344,7 @@ function Attendance({ role, userGuardId }) {
           </div>
         </div>
       )}
-      <div className="mt-10">
-        <h1 className="text-2xl font-bold mb-5 text-gray-800">Attendance Management</h1>
+      <div className="mt-2">
 
         <div className="glass-card rounded-2xl p-6 mb-8 ring-1 ring-indigo-200">
           <h2 className="text-xl font-semibold mb-4 text-gray-700">
@@ -299,78 +402,204 @@ function Attendance({ role, userGuardId }) {
           </div>
         </div>
 
-        <div className="glass-card rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[800px]">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left p-4 text-gray-600 font-semibold">Guard</th>
-                  <th className="text-left p-4 text-gray-600 font-semibold">Date</th>
-                  <th className="text-left p-4 text-gray-600 font-semibold">Location</th>
-                  <th className="text-left p-4 text-gray-600 font-semibold">Check In</th>
-                  <th className="text-left p-4 text-gray-600 font-semibold">Check Out</th>
-                  <th className="text-left p-4 text-gray-600 font-semibold">Status</th>
-                  <th className="text-left p-4 text-gray-600 font-semibold">Photo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.length === 0 ? (
-                  <tr><td colSpan={7} className="p-8 text-center text-gray-400">No attendance records yet.</td></tr>
-                ) : records.map((item) => (
-                  <tr key={item.id} className="border-b hover:bg-gray-50 transition">
-                    <td className="p-4 font-medium">{item.guards?.name}</td>
-                    <td className="p-4 text-gray-500">{item.check_in_time?.split("T")[0] || item.date}</td>
-                    <td className="p-4 text-gray-500 text-sm">{item.duty_locations?.place_name || "—"}</td>
-                    <td className="p-4">{item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString() : item.check_in || "—"}</td>
-                    <td className="p-4">{item.check_out_time ? new Date(item.check_out_time).toLocaleTimeString() : item.check_out || "—"}</td>
-                    <td className="p-4">
-                      {(() => {
-                        let displayStatus = item.status;
-                        let statusClass = "bg-gray-100 text-gray-700";
-                        if (item.status === "Present") {
-                          if (item.check_in_time && !item.check_out_time) {
-                            const checkInDate = new Date(item.check_in_time).toDateString();
-                            const todayDate = new Date().toDateString();
-                            if (checkInDate === todayDate) {
-                              displayStatus = "On Duty";
-                              statusClass = "bg-blue-100 text-blue-700 font-bold";
-                            } else {
-                              displayStatus = "Missed Checkout";
-                              statusClass = "bg-amber-100 text-amber-700 font-bold";
-                            }
-                          } else {
-                            displayStatus = "Present";
-                            statusClass = "bg-green-100 text-green-700 font-bold";
-                          }
-                        } else if (item.status === "Absent") {
-                          statusClass = "bg-red-100 text-red-700 font-bold";
-                        } else {
-                          statusClass = "bg-yellow-100 text-yellow-700 font-bold";
-                        }
-                        return (
-                          <span className={`inline-block px-3 py-1 rounded-full text-xs uppercase tracking-wider ${statusClass}`}>
-                            {displayStatus}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex gap-1">
-                        {item.check_in_photo ? (
-                          <button onClick={() => setPreviewPhoto(item.check_in_photo)} className="text-blue-500 hover:underline text-sm">📸 In</button>
-                        ) : null}
-                        {item.check_out_photo ? (
-                          <button onClick={() => setPreviewPhoto(item.check_out_photo)} className="text-blue-500 hover:underline text-sm ml-2">📸 Out</button>
-                        ) : null}
-                        {!item.check_in_photo && !item.check_out_photo ? "—" : null}
+        {!hideHistory && (
+          <div className="space-y-4 mt-6">
+            {/* Filters and Actions Bar */}
+            <div className="flex justify-between items-center bg-transparent mb-0">
+              <h3 className="text-lg font-bold text-gray-800">📋 Attendance History</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowFiltersModal(true)}
+                  className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
+                >
+                  🔍 Filter Option
+                </button>
+                <button
+                  onClick={downloadReportCSV}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
+                >
+                  📥 Export CSV
+                </button>
+                <button
+                  onClick={printReport}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
+                >
+                  🖨️ Print Report
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Overlay Popup Modal */}
+            {showFiltersModal && (
+              <div className="fixed inset-0 z-[150] bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+                  {/* Modal Header */}
+                  <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <div>
+                      <h3 className="font-bold text-gray-800 text-base">🔍 Filter Records</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">Filter history records by criteria</p>
+                    </div>
+                    <button onClick={() => setShowFiltersModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-sm text-gray-500 hover:bg-gray-50 transition border border-gray-100">✕</button>
+                  </div>
+                  {/* Modal Body */}
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Guard</label>
+                      <select
+                        value={filterGuard}
+                        onChange={(e) => setFilterGuard(e.target.value)}
+                        className="w-full h-11 border border-gray-300 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm bg-white"
+                      >
+                        <option value="">All Guards</option>
+                        {guards.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Location</label>
+                      <select
+                        value={filterLocation}
+                        onChange={(e) => setFilterLocation(e.target.value)}
+                        className="w-full h-11 border border-gray-300 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm bg-white"
+                      >
+                        <option value="">All Locations</option>
+                        {locations.map((l) => (<option key={l.id} value={l.id}>{l.place_name}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Status</label>
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="w-full h-11 border border-gray-300 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm bg-white"
+                      >
+                        <option value="">All Statuses</option>
+                        <option value="Present">Present</option>
+                        <option value="Absent">Absent</option>
+                        <option value="Leave">Leave</option>
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">Start Date</label>
+                        <input
+                          type="date"
+                          value={filterStartDate}
+                          onChange={(e) => setFilterStartDate(e.target.value)}
+                          className="w-full h-11 border border-gray-300 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm bg-white"
+                        />
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">End Date</label>
+                        <input
+                          type="date"
+                          value={filterEndDate}
+                          onChange={(e) => setFilterEndDate(e.target.value)}
+                          className="w-full h-11 border border-gray-300 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Modal Footer */}
+                  <div className="px-6 py-4 border-t border-gray-100 flex gap-3 bg-gray-50/50 justify-end">
+                    <button
+                      onClick={() => {
+                        setFilterGuard("");
+                        setFilterLocation("");
+                        setFilterStatus("");
+                        setFilterStartDate("");
+                        setFilterEndDate("");
+                        setShowFiltersModal(false);
+                      }}
+                      className="px-4 py-2 border border-gray-200 text-gray-500 rounded-xl text-xs font-bold hover:bg-gray-100 transition"
+                    >
+                      Clear All
+                    </button>
+                    <button
+                      onClick={() => setShowFiltersModal(false)}
+                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-md"
+                    >
+                      Apply Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Table Card */}
+            <div className="glass-card rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse min-w-[800px]">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th className="text-left p-4 text-gray-600 font-semibold">Guard</th>
+                      <th className="text-left p-4 text-gray-600 font-semibold">Date</th>
+                      <th className="text-left p-4 text-gray-600 font-semibold">Location</th>
+                      <th className="text-left p-4 text-gray-600 font-semibold">Check In</th>
+                      <th className="text-left p-4 text-gray-600 font-semibold">Check Out</th>
+                      <th className="text-left p-4 text-gray-600 font-semibold">Status</th>
+                      <th className="text-left p-4 text-gray-600 font-semibold">Photo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRecords.length === 0 ? (
+                      <tr><td colSpan={7} className="p-8 text-center text-gray-400">No attendance records matching the filters.</td></tr>
+                    ) : filteredRecords.map((item) => (
+                      <tr key={item.id} className="border-b hover:bg-gray-50 transition">
+                        <td className="p-4 font-medium">{item.guards?.name}</td>
+                        <td className="p-4 text-gray-500">{item.check_in_time?.split("T")[0] || item.date}</td>
+                        <td className="p-4 text-gray-500 text-sm">{item.duty_locations?.place_name || "—"}</td>
+                        <td className="p-4">{item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString() : item.check_in || "—"}</td>
+                        <td className="p-4">{item.check_out_time ? new Date(item.check_out_time).toLocaleTimeString() : item.check_out || "—"}</td>
+                        <td className="p-4">
+                          {(() => {
+                            let displayStatus = item.status;
+                            let statusClass = "bg-gray-100 text-gray-700";
+                            if (item.status === "Present") {
+                              if (item.check_in_time && !item.check_out_time) {
+                                const checkInDate = new Date(item.check_in_time).toDateString();
+                                const todayDate = new Date().toDateString();
+                                if (checkInDate === todayDate) {
+                                  displayStatus = "On Duty";
+                                  statusClass = "status-chip-on-duty";
+                                } else {
+                                  displayStatus = "Missed Checkout";
+                                  statusClass = "status-chip-missed-checkout";
+                                }
+                              } else {
+                                displayStatus = "Present";
+                                statusClass = "status-chip-present";
+                              }
+                            } else if (item.status === "Absent") {
+                              statusClass = "status-chip-absent";
+                            } else {
+                              statusClass = "status-chip-leave";
+                            }
+                            return (
+                              <span className={`status-chip ${statusClass}`}>
+                                {displayStatus}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex gap-1">
+                            {item.check_in_photo ? (
+                              <button onClick={() => setPreviewPhoto(item.check_in_photo)} className="text-blue-500 hover:underline text-sm">📸 In</button>
+                            ) : null}
+                            {item.check_out_photo ? (
+                              <button onClick={() => setPreviewPhoto(item.check_out_photo)} className="text-blue-500 hover:underline text-sm ml-2">📸 Out</button>
+                            ) : null}
+                            {!item.check_in_photo && !item.check_out_photo ? "—" : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </>
   );

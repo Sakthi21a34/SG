@@ -1,22 +1,40 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+const guardIcon = L.divIcon({
+  className: "custom-div-icon",
+  html: "<div style='background-color:#10b981; color:white; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(0,0,0,0.15); border: 2px solid white;'>🛡️</div>",
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
 });
+
+const locationIcon = L.divIcon({
+  className: "custom-div-icon",
+  html: "<div style='background-color:#3b82f6; color:white; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; box-shadow: 0 4px 10px rgba(0,0,0,0.15); border: 2px solid white;'>📍</div>",
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+});
+
+function ChangeMapView({ coords }) {
+  const map = useMap();
+  useEffect(() => {
+    if (coords && coords[0] && coords[1]) {
+      map.setView(coords, 16);
+    }
+  }, [coords, map]);
+  return null;
+}
 
 function MapView() {
   const [guardsOnDuty, setGuardsOnDuty] = useState([]);
   const [dutyLocations, setDutyLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showMap, setShowMap] = useState(false);
+  const [selectedCoords, setSelectedCoords] = useState(null);
   const intervalRef = useRef(null);
   const { showToast, ToastContainer } = useToast();
 
@@ -92,8 +110,7 @@ function MapView() {
   return (
     <>
       <ToastContainer />
-      <div className="mt-10">
-        <h1 className="text-2xl font-bold mb-5 text-gray-800">📍 Live Tracking Map</h1>
+      <div className="mt-2">
 
         <div className="glass-card rounded-2xl p-6 ring-1 ring-blue-200">
           <div className="flex justify-between items-center mb-4">
@@ -114,9 +131,10 @@ function MapView() {
               <>
                 <div className="bg-gray-100 rounded-xl overflow-hidden" style={{ height: "500px" }}>
                   <MapContainer center={[centerLat, centerLng]} zoom={14} className="w-full h-full">
+                    <ChangeMapView coords={selectedCoords || [centerLat, centerLng]} />
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     {dutyLocations.map((loc) => (
-                      <Marker key={`loc-${loc.id}`} position={[loc.latitude, loc.longitude]}>
+                      <Marker key={`loc-${loc.id}`} position={[loc.latitude, loc.longitude]} icon={locationIcon}>
                         <Popup>
                           <div className="text-sm">
                             <p className="font-semibold text-gray-800">{loc.place_name}</p>
@@ -127,8 +145,16 @@ function MapView() {
                         </Popup>
                       </Marker>
                     ))}
+                    {dutyLocations.map((loc) => (
+                      <Circle
+                        key={`loc-circle-${loc.id}`}
+                        center={[loc.latitude, loc.longitude]}
+                        radius={loc.radius_meters || 100}
+                        pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15, weight: 2 }}
+                      />
+                    ))}
                     {guardsOnDuty.map((guard) => (
-                      <Marker key={`guard-${guard.id}`} position={[guard.lat, guard.lng]}>
+                      <Marker key={`guard-${guard.id}`} position={[guard.lat, guard.lng]} icon={guardIcon}>
                         <Popup>
                           <div className="text-sm">
                             <p className="font-semibold text-gray-800">🛡️ {guard.guardName}</p>
@@ -165,9 +191,14 @@ function MapView() {
             ) : (
               <ul className="space-y-2">
                 {dutyLocations.map((loc) => (
-                  <li key={loc.id} className="text-sm text-gray-600 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-600" />
-                    {loc.place_name}
+                  <li key={loc.id}>
+                    <button
+                      onClick={() => setSelectedCoords([loc.latitude, loc.longitude])}
+                      className="w-full text-left text-sm text-gray-600 flex items-center gap-2 hover:bg-blue-50 p-2 rounded-lg transition-all duration-200"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-blue-600" />
+                      {loc.place_name}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -180,11 +211,16 @@ function MapView() {
             ) : (
               <ul className="space-y-2">
                 {guardsOnDuty.map((guard) => (
-                  <li key={guard.id} className="text-sm text-gray-600 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
-                    <span>{guard.guardName}</span>
-                    {guard.locationName && <span className="text-gray-400">@ {guard.locationName}</span>}
-                    <span className="text-gray-400 ml-auto">{new Date(guard.time).toLocaleTimeString()}</span>
+                  <li key={guard.id}>
+                    <button
+                      onClick={() => setSelectedCoords([guard.lat, guard.lng])}
+                      className="w-full text-left text-sm text-gray-600 flex items-center gap-2 hover:bg-emerald-50 p-2 rounded-lg transition-all duration-200"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+                      <span>{guard.guardName}</span>
+                      {guard.locationName && <span className="text-gray-400">@ {guard.locationName}</span>}
+                      <span className="text-gray-400 ml-auto">{new Date(guard.time).toLocaleTimeString()}</span>
+                    </button>
                   </li>
                 ))}
               </ul>

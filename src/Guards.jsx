@@ -4,6 +4,13 @@ import { useToast } from "./Toast";
 import ConfirmModal from "./ConfirmModal";
 
 const STATUS_OPTIONS = ["Active", "Inactive"];
+const SHIFT_OPTIONS = ["Morning Shift", "Evening Shift", "Night Shift", "Full Day", "Custom"];
+const DEFAULT_TIMINGS = {
+  "Morning Shift": { start: "06:00:00", startSimple: "06:00", end: "14:00:00", endSimple: "14:00" },
+  "Evening Shift": { start: "14:00:00", startSimple: "14:00", end: "22:00:00", endSimple: "22:00" },
+  "Night Shift": { start: "22:00:00", startSimple: "22:00", end: "06:00:00", endSimple: "06:00" },
+  "Full Day": { start: "08:00:00", startSimple: "08:00", end: "20:00:00", endSimple: "20:00" },
+};
 
 /* ── helper: post a circular notification ── */
 async function postCircular(title, content) {
@@ -13,6 +20,13 @@ async function postCircular(title, content) {
 function Guards({ onGuardAdded }) {
   const [guards, setGuards] = useState([]);
   const [locations, setLocations] = useState([]);
+
+  // Wizard Step State
+  const [currentStep, setCurrentStep] = useState(1);
+
+  // Active guard for Temporary Override Modal
+  const [overrideGuard, setOverrideGuard] = useState(null);
+  const [selectedShiftGuard, setSelectedShiftGuard] = useState(null);
 
   // Core fields
   const [name, setName] = useState("");
@@ -26,6 +40,15 @@ function Guards({ onGuardAdded }) {
   const [tempFrom, setTempFrom] = useState("");
   const [tempTo, setTempTo] = useState("");
 
+  // Shift fields
+  const [shiftName, setShiftName] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+
+  const [tempShiftName, setTempShiftName] = useState("");
+  const [tempStartTime, setTempStartTime] = useState("");
+  const [tempEndTime, setTempEndTime] = useState("");
+
   // Login credentials
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,7 +61,7 @@ function Guards({ onGuardAdded }) {
   const { showToast, ToastContainer } = useToast();
 
   /* ── validation ── */
-  function validate() {
+  function validateStep1() {
     const errs = {};
     if (!name.trim()) errs.name = "Guard name is required";
     else if (name.trim().length < 2) errs.name = "Name must be at least 2 characters";
@@ -47,15 +70,12 @@ function Guards({ onGuardAdded }) {
     else if (!/^\d{10}$/.test(phone.trim())) errs.phone = "Enter a valid 10-digit number";
     if (!site.trim()) errs.site = "Site is required";
     else if (site.trim().length < 2) errs.site = "Site must be at least 2 characters";
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
 
-    // Temp location: if any temp field set, all must be set
-    if (tempLocationId || tempFrom || tempTo) {
-      if (!tempLocationId) errs.tempLocationId = "Select a temp location";
-      if (!tempFrom) errs.tempFrom = "Start date required";
-      if (!tempTo) errs.tempTo = "End date required";
-      if (tempFrom && tempTo && tempFrom > tempTo) errs.tempTo = "End must be after start";
-    }
-
+  function validateStep3() {
+    const errs = {};
     if (!editingId) {
       if (email.trim()) {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Enter a valid email";
@@ -67,10 +87,123 @@ function Guards({ onGuardAdded }) {
     return Object.keys(errs).length === 0;
   }
 
+  function validate() {
+    const errs = {};
+    if (!name.trim()) errs.name = "Guard name is required";
+    if (!phone.trim()) errs.phone = "Phone number is required";
+    if (!site.trim()) errs.site = "Site is required";
+    if (!editingId && email.trim() && !password) errs.password = "Password required";
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
+  async function handleSaveTempOverride(guardId, data) {
+    setLoading(true);
+    try {
+      const { tempLocationId, tempFrom, tempTo, tempShiftName, tempStartTime, tempEndTime } = data;
+
+      // Update guard record
+      const { error: guardErr } = await supabase
+        .from("guards")
+        .update({
+          temp_location_id: tempLocationId || null,
+          temp_location_from: tempFrom || null,
+          temp_location_to: tempTo || null,
+        })
+        .eq("id", guardId);
+
+      if (guardErr) {
+        showToast("Error updating temporary location.", "error");
+        setLoading(false);
+        return;
+      }
+
+      // Delete existing temporary shifts for this guard in the range
+      if (tempFrom && tempTo) {
+        await supabase
+          .from("shifts")
+          .delete()
+          .eq("guard_id", guardId)
+          .gte("shift_date", tempFrom)
+          .lte("shift_date", tempTo);
+
+        // If a shift name is specified, insert the temp shifts
+        if (tempShiftName) {
+          let start = new Date(tempFrom);
+          let end = new Date(tempTo);
+          let dateList = [];
+          while (start <= end) {
+            dateList.push(start.toISOString().split("T")[0]);
+            start.setDate(start.getDate() + 1);
+          }
+
+          const overridePayloads = dateList.map(d => ({
+            guard_id: guardId,
+            site: overrideGuard.site || "",
+            shift_name: tempShiftName,
+            start_time: tempStartTime || null,
+            end_time: tempEndTime || null,
+            shift_date: d
+          }));
+
+          if (overridePayloads.length > 0) {
+            await supabase.from("shifts").insert(overridePayloads);
+          }
+        }
+      }
+
+      // Notify
+      if (tempLocationId && tempFrom && tempTo) {
+        const locName = locations.find(l => String(l.id) === String(tempLocationId))?.place_name || "a temporary location";
+        await postCircular(
+          `Temporary Assignment Update – ${overrideGuard.name}`,
+          `Guard ${overrideGuard.name} has been assigned to ${locName} from ${tempFrom} to ${tempTo}.`
+        );
+      }
+
+      showToast("Temporary override updated successfully!", "success");
+      setOverrideGuard(null);
+      fetchGuards();
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleClearTempOverride(guardId) {
+    setLoading(true);
+    try {
+      // Clear guard record override fields
+      const { error: guardErr } = await supabase
+        .from("guards")
+        .update({
+          temp_location_id: null,
+          temp_location_from: null,
+          temp_location_to: null,
+        })
+        .eq("id", guardId);
+
+      if (guardErr) {
+        showToast("Error clearing override.", "error");
+        setLoading(false);
+        return;
+      }
+
+      showToast("Temporary override cleared!", "success");
+      setOverrideGuard(null);
+      fetchGuards();
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   /* ── fetch ── */
   async function fetchGuards() {
     try {
-      const { data, error } = await supabase
+      const { data: guardsData, error } = await supabase
         .from("guards")
         .select(`
           *,
@@ -79,11 +212,28 @@ function Guards({ onGuardAdded }) {
           temp_duty_location:duty_locations!temp_location_id(place_name)
         `)
         .order("id", { ascending: true });
+
       if (error) {
         showToast(`Could not load guards: ${error.message}`, "error");
-      } else {
-        setGuards(data || []);
+        return;
       }
+
+      const { data: shiftsData } = await supabase
+        .from("shifts")
+        .select("*");
+
+      const mapped = (guardsData || []).map(guard => {
+        const guardShifts = (shiftsData || []).filter(s => s.guard_id === guard.id);
+        const constantShift = guardShifts.find(s => s.shift_date === null);
+        const tempShifts = guardShifts.filter(s => s.shift_date !== null);
+        return {
+          ...guard,
+          constantShift,
+          tempShifts
+        };
+      });
+
+      setGuards(mapped);
     } catch (err) {
       showToast(`Network error: ${err?.message}`, "error");
     }
@@ -116,7 +266,7 @@ function Guards({ onGuardAdded }) {
         }
       }
 
-      const { error } = await supabase.from("guards").insert([{
+      const { data: insertData, error } = await supabase.from("guards").insert([{
         name: name.trim(), phone: phone.trim(), site: site.trim(),
         status: status || "Active",
         duty_location_id: dutyLocationId || null,
@@ -125,11 +275,49 @@ function Guards({ onGuardAdded }) {
         temp_location_to: tempTo || null,
         auth_user_id: authUserId,
         email: email.trim() || null,
-      }]);
+      }]).select();
 
       if (error) {
         showToast(error.message.includes("duplicate") ? "Guard already exists." : "Could not add guard.", "error");
         return;
+      }
+
+      const guardId = insertData[0]?.id;
+
+      // Save Constant Shift
+      if (guardId && shiftName) {
+        await supabase.from("shifts").insert([{
+          guard_id: guardId,
+          site: site.trim(),
+          shift_name: shiftName,
+          start_time: startTime || null,
+          end_time: endTime || null,
+          shift_date: null
+        }]);
+      }
+
+      // Save Temporary Shift Override
+      if (guardId && tempFrom && tempTo && tempShiftName) {
+        let start = new Date(tempFrom);
+        let end = new Date(tempTo);
+        let dateList = [];
+        while (start <= end) {
+          dateList.push(start.toISOString().split("T")[0]);
+          start.setDate(start.getDate() + 1);
+        }
+
+        const overridePayloads = dateList.map(d => ({
+          guard_id: guardId,
+          site: site.trim(),
+          shift_name: tempShiftName,
+          start_time: tempStartTime || null,
+          end_time: tempEndTime || null,
+          shift_date: d
+        }));
+
+        if (overridePayloads.length > 0) {
+          await supabase.from("shifts").insert(overridePayloads);
+        }
       }
 
       // Auto-notify if temp location set
@@ -167,7 +355,32 @@ function Guards({ onGuardAdded }) {
     const resolvedEmail = guard.email || guard.profiles?.email || "";
     setEmail(resolvedEmail);
     setPassword("");
+
+    // Load Constant Shift details
+    if (guard.constantShift) {
+      setShiftName(guard.constantShift.shift_name || "");
+      setStartTime(guard.constantShift.start_time || "");
+      setEndTime(guard.constantShift.end_time || "");
+    } else {
+      setShiftName("");
+      setStartTime("");
+      setEndTime("");
+    }
+
+    // Load Temporary Shift details
+    if (guard.tempShifts && guard.tempShifts.length > 0) {
+      const tShift = guard.tempShifts[0];
+      setTempShiftName(tShift.shift_name || "");
+      setTempStartTime(tShift.start_time || "");
+      setTempEndTime(tShift.end_time || "");
+    } else {
+      setTempShiftName("");
+      setTempStartTime("");
+      setTempEndTime("");
+    }
+
     setErrors({});
+    setCurrentStep(1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -180,6 +393,9 @@ function Guards({ onGuardAdded }) {
     setName(""); setPhone(""); setSite(""); setStatus("Active");
     setDutyLocationId(""); setTempLocationId(""); setTempFrom(""); setTempTo("");
     setEmail(""); setPassword("");
+    setShiftName(""); setStartTime(""); setEndTime("");
+    setTempShiftName(""); setTempStartTime(""); setTempEndTime("");
+    setCurrentStep(1);
     setPrevDutyLocationId(null);
     setErrors({});
   }
@@ -217,6 +433,62 @@ function Guards({ onGuardAdded }) {
       }).eq("id", editingId);
 
       if (error) { showToast("Could not update guard.", "error"); return; }
+
+      // Save/Update Constant Shift
+      if (shiftName) {
+        const { data: existingConstant } = await supabase
+          .from("shifts")
+          .select("id")
+          .eq("guard_id", editingId)
+          .is("shift_date", null)
+          .maybeSingle();
+
+        const shiftPayload = {
+          guard_id: editingId,
+          site: site.trim(),
+          shift_name: shiftName,
+          start_time: startTime || null,
+          end_time: endTime || null,
+          shift_date: null
+        };
+
+        if (existingConstant?.id) {
+          await supabase.from("shifts").update(shiftPayload).eq("id", existingConstant.id);
+        } else {
+          await supabase.from("shifts").insert([shiftPayload]);
+        }
+      }
+
+      // Save/Update Temporary Shift Override
+      if (tempFrom && tempTo && tempShiftName) {
+        await supabase
+          .from("shifts")
+          .delete()
+          .eq("guard_id", editingId)
+          .gte("shift_date", tempFrom)
+          .lte("shift_date", tempTo);
+
+        let start = new Date(tempFrom);
+        let end = new Date(tempTo);
+        let dateList = [];
+        while (start <= end) {
+          dateList.push(start.toISOString().split("T")[0]);
+          start.setDate(start.getDate() + 1);
+        }
+
+        const overridePayloads = dateList.map(d => ({
+          guard_id: editingId,
+          site: site.trim(),
+          shift_name: tempShiftName,
+          start_time: tempStartTime || null,
+          end_time: tempEndTime || null,
+          shift_date: d
+        }));
+
+        if (overridePayloads.length > 0) {
+          await supabase.from("shifts").insert(overridePayloads);
+        }
+      }
 
       // ── Auto-circular: primary location changed ──
       const newLocId = dutyLocationId ? parseInt(dutyLocationId) : null;
@@ -294,6 +566,206 @@ function Guards({ onGuardAdded }) {
         />
       )}
 
+      {overrideGuard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-6 w-[500px] shadow-2xl border border-gray-150 max-h-[90vh] overflow-y-auto animate-fade-in">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-800">⏱️ Temporary Assignment</h2>
+              <button onClick={() => setOverrideGuard(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <p className="text-gray-500 text-sm mb-4">Set temporary shift and location override details for <strong>{overrideGuard.name}</strong>.</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-amber-700 mb-1">Temporary Duty Location</label>
+                <select value={tempLocationId} onChange={e => setTempLocationId(e.target.value)}
+                  className="w-full h-11 border border-amber-200 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white text-sm">
+                  <option value="">None (Keep Primary Location)</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.place_name}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-amber-700 mb-1">From Date</label>
+                  <input type="date" value={tempFrom} onChange={e => setTempFrom(e.target.value)}
+                    className="w-full h-10 border border-amber-200 p-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-amber-700 mb-1">To Date</label>
+                  <input type="date" value={tempTo} min={tempFrom} onChange={e => setTempTo(e.target.value)}
+                    className="w-full h-10 border border-amber-200 p-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
+                </div>
+              </div>
+
+              {/* Quick selection options */}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => {
+                  const today = new Date().toISOString().split("T")[0];
+                  setTempFrom(today);
+                  setTempTo(today);
+                }} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200/50 rounded-lg text-xs font-bold hover:bg-amber-100 transition">
+                  Today Only
+                </button>
+                <button type="button" onClick={() => {
+                  const today = new Date();
+                  const tomorrow = new Date();
+                  tomorrow.setDate(today.getDate() + 1);
+                  setTempFrom(tomorrow.toISOString().split("T")[0]);
+                  setTempTo(tomorrow.toISOString().split("T")[0]);
+                }} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200/50 rounded-lg text-xs font-bold hover:bg-amber-100 transition">
+                  Tomorrow Only
+                </button>
+                <button type="button" onClick={() => {
+                  const start = new Date();
+                  const end = new Date();
+                  end.setDate(start.getDate() + 2); // 3 days total (today, tmr, day after)
+                  setTempFrom(start.toISOString().split("T")[0]);
+                  setTempTo(end.toISOString().split("T")[0]);
+                }} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200/50 rounded-lg text-xs font-bold hover:bg-amber-100 transition">
+                  Next 3 Days
+                </button>
+              </div>
+
+              <div className="bg-amber-50/60 border border-amber-100 rounded-2xl p-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-amber-700 mb-1">Temporary Shift Type</label>
+                  <select value={tempShiftName} onChange={e => {
+                    setTempShiftName(e.target.value);
+                    const defaultTime = DEFAULT_TIMINGS[e.target.value];
+                    if (defaultTime) {
+                      setTempStartTime(defaultTime.startSimple);
+                      setTempEndTime(defaultTime.endSimple);
+                    }
+                  }}
+                    className="w-full h-11 border border-amber-200 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white text-sm mb-2">
+                    <option value="">Select Temp Shift</option>
+                    {SHIFT_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-amber-600 font-bold">Start Time</label>
+                      <input type="time" value={tempStartTime} onChange={e => setTempStartTime(e.target.value)}
+                        className="w-full h-9 border border-amber-200 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-amber-600 font-bold">End Time</label>
+                      <input type="time" value={tempEndTime} onChange={e => setTempEndTime(e.target.value)}
+                        className="w-full h-9 border border-amber-200 p-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end mt-6 pt-4 border-t border-gray-100">
+              {overrideGuard.temp_location_id && (
+                <button type="button" onClick={() => handleClearTempOverride(overrideGuard.id)}
+                  className="px-4 py-2 bg-red-50 text-red-650 border border-red-200 rounded-xl hover:bg-red-100 transition text-sm font-semibold mr-auto">
+                  Clear Override
+                </button>
+              )}
+              <button type="button" onClick={() => setOverrideGuard(null)}
+                className="px-4 py-2 border border-gray-305 text-gray-600 rounded-xl hover:bg-gray-50 transition text-sm font-semibold">
+                Cancel
+              </button>
+              <button type="button" onClick={() => handleSaveTempOverride(overrideGuard.id, {
+                tempLocationId, tempFrom, tempTo, tempShiftName, tempStartTime, tempEndTime
+              })}
+                className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition text-sm font-bold shadow-md shadow-amber-200">
+                Save Override
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedShiftGuard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-6 w-[450px] shadow-2xl border border-gray-150 max-h-[90vh] overflow-y-auto animate-fade-in mx-4">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-800">📅 Shift & Location Details</h2>
+              <button onClick={() => setSelectedShiftGuard(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs text-gray-450 font-bold uppercase tracking-wider">Guard Name</p>
+                <p className="text-lg font-bold text-gray-800">{selectedShiftGuard.name}</p>
+              </div>
+
+              <div className="border-t border-gray-105 pt-3">
+                <p className="text-xs text-indigo-500 font-bold uppercase tracking-wider mb-1.5">Today's Active Assignment</p>
+                {(() => {
+                  const eff = effectiveLocation(selectedShiftGuard);
+                  const today = new Date().toISOString().split("T")[0];
+                  const hasTempShift = selectedShiftGuard.tempShifts && selectedShiftGuard.tempShifts.length > 0 &&
+                    selectedShiftGuard.temp_location_from && selectedShiftGuard.temp_location_to &&
+                    today >= selectedShiftGuard.temp_location_from && today <= selectedShiftGuard.temp_location_to;
+                  
+                  const activeShift = hasTempShift ? selectedShiftGuard.tempShifts[0] : selectedShiftGuard.constantShift;
+                  return (
+                    <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100/50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-bold text-gray-805">{eff.name}</span>
+                        {eff.isTemp && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">TEMP OVERRIDE</span>
+                        )}
+                      </div>
+                      {activeShift ? (
+                        <p className="text-sm text-indigo-650 font-semibold">
+                          ⏰ {activeShift.shift_name} ({activeShift.start_time?.substring(0, 5) || "—"} - {activeShift.end_time?.substring(0, 5) || "—"})
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-400">No shift assigned</p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 border-t border-gray-105 pt-3">
+                <div>
+                  <p className="text-xs text-gray-450 font-bold uppercase tracking-wider mb-1">Constant Schedule</p>
+                  <div className="bg-gray-50 rounded-xl p-3 text-sm">
+                    <p className="font-semibold text-gray-700">Location: {selectedShiftGuard.duty_location?.place_name || "—"}</p>
+                    {selectedShiftGuard.constantShift ? (
+                      <p className="text-gray-650">Shift: {selectedShiftGuard.constantShift.shift_name} ({selectedShiftGuard.constantShift.start_time?.substring(0, 5) || "—"} - {selectedShiftGuard.constantShift.end_time?.substring(0, 5) || "—"})</p>
+                    ) : (
+                      <p className="text-gray-400">No constant shift</p>
+                    )}
+                  </div>
+                </div>
+
+                {selectedShiftGuard.temp_location_from && selectedShiftGuard.temp_location_to && (
+                  <div>
+                    <p className="text-xs text-amber-700 font-bold uppercase tracking-wider mb-1">Temporary Override</p>
+                    <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 text-sm">
+                      <p className="font-semibold text-amber-800">Location: {selectedShiftGuard.temp_duty_location?.place_name || "—"}</p>
+                      {selectedShiftGuard.tempShifts && selectedShiftGuard.tempShifts.length > 0 ? (
+                        <p className="text-amber-705 text-xs">Shift: {selectedShiftGuard.tempShifts[0].shift_name} ({selectedShiftGuard.tempShifts[0].start_time?.substring(0, 5) || "—"} - {selectedShiftGuard.tempShifts[0].end_time?.substring(0, 5) || "—"})</p>
+                      ) : (
+                        <p className="text-amber-600 text-xs">No temporary shift</p>
+                      )}
+                      <p className="text-[11px] text-amber-600 font-medium mt-1">
+                        Validity: {selectedShiftGuard.temp_location_from} to {selectedShiftGuard.temp_location_to}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end mt-6 pt-4 border-t border-gray-100">
+              <button type="button" onClick={() => setSelectedShiftGuard(null)}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition text-sm font-bold shadow-md shadow-indigo-150">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 space-y-8">
         {/* ─── ADD / EDIT FORM ─── */}
         <div className={`glass-card rounded-2xl p-6 transition ${editingId ? "ring-2 ring-blue-300" : "ring-1 ring-green-200"}`}>
@@ -301,122 +773,178 @@ function Guards({ onGuardAdded }) {
             {editingId ? "✏️ Edit Guard Profile" : "➕ Add New Guard & Profile Login"}
           </h2>
 
-          {/* Section: Personal details */}
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Personal Details</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">Guard Name</label>
-              <input type="text" placeholder="Full name" value={name}
-                onChange={e => { setName(e.target.value); clearError("name"); }}
-                className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.name ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
-              />
-              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
-            </div>
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">Phone Number</label>
-              <input type="text" placeholder="10-digit number" maxLength={10} value={phone}
-                onChange={e => { setPhone(e.target.value.replace(/\D/g, "")); clearError("phone"); }}
-                className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.phone ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
-              />
-              {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
-            </div>
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">Site</label>
-              <input type="text" placeholder="Site / Area" value={site}
-                onChange={e => { setSite(e.target.value); clearError("site"); }}
-                className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.site ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
-              />
-              {errors.site && <p className="text-red-500 text-xs mt-1">{errors.site}</p>}
-            </div>
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">Status</label>
-              <select value={status} onChange={e => setStatus(e.target.value)}
-                className="w-full h-11 border border-gray-200 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
-                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
+          {/* Stepper progress indicator */}
+          <div className="flex items-center gap-2 mb-6 border-b pb-4 border-gray-100 overflow-x-auto">
+            {[
+              { num: 1, name: "Personal Details", icon: "👤" },
+              { num: 2, name: "Constant Assignment", icon: "🏠" },
+              { num: 3, name: "Login Credentials", icon: "🔑" }
+            ].map(step => (
+              <div key={step.num} className="flex items-center gap-2 mr-4 shrink-0">
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition ${
+                  currentStep === step.num
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-150"
+                    : currentStep > step.num
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-gray-100 text-gray-400"
+                }`}>
+                  {currentStep > step.num ? "✓" : step.num}
+                </span>
+                <span className={`text-sm font-semibold transition ${
+                  currentStep === step.num ? "text-gray-800" : "text-gray-400"
+                }`}>
+                  {step.icon} {step.name}
+                </span>
+                {step.num < 3 && <span className="text-gray-300 ml-2">➔</span>}
+              </div>
+            ))}
           </div>
 
-          {/* Section: Duty Location */}
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Duty Location</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
-            {/* Primary fixed location */}
-            <div className="bg-blue-50/60 border border-blue-100 rounded-2xl p-4">
-              <p className="text-xs font-bold text-blue-600 mb-2">🏠 Primary Location <span className="text-blue-400 font-normal">(Fixed — rarely changes)</span></p>
-              <select value={dutyLocationId} onChange={e => { setDutyLocationId(e.target.value); clearError("dutyLocationId"); }}
-                className="w-full h-11 border border-blue-200 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white text-sm">
-                <option value="">Not assigned</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.place_name}</option>)}
-              </select>
+          {/* Step 1: Personal details */}
+          {currentStep === 1 && (
+            <div className="space-y-4 animate-fade-in">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Personal Details</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1">Guard Name</label>
+                  <input type="text" placeholder="Full name" value={name}
+                    onChange={e => { setName(e.target.value); clearError("name"); }}
+                    className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.name ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
+                  />
+                  {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1">Phone Number</label>
+                  <input type="text" placeholder="10-digit number" maxLength={10} value={phone}
+                    onChange={e => { setPhone(e.target.value.replace(/\D/g, "")); clearError("phone"); }}
+                    className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.phone ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
+                  />
+                  {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1">Site</label>
+                  <input type="text" placeholder="Site / Area" value={site}
+                    onChange={e => { setSite(e.target.value); clearError("site"); }}
+                    className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.site ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
+                  />
+                  {errors.site && <p className="text-red-500 text-xs mt-1">{errors.site}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1">Status</label>
+                  <select value={status} onChange={e => setStatus(e.target.value)}
+                    className="w-full h-11 border border-gray-200 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white">
+                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
             </div>
+          )}
 
-            {/* Temporary override */}
-            <div className="bg-amber-50/60 border border-amber-100 rounded-2xl p-4">
-              <p className="text-xs font-bold text-amber-600 mb-2">⏱️ Temporary Override <span className="text-amber-400 font-normal">(For specific days only)</span></p>
-              <select value={tempLocationId} onChange={e => { setTempLocationId(e.target.value); clearError("tempLocationId"); }}
-                className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 bg-white text-sm mb-2 ${errors.tempLocationId ? "border-red-400 focus:ring-red-300" : "border-amber-200 focus:ring-amber-300"}`}>
-                <option value="">None</option>
-                {locations.map(l => <option key={l.id} value={l.id}>{l.place_name}</option>)}
-              </select>
-              {tempLocationId && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-amber-600 font-medium">From</label>
-                    <input type="date" value={tempFrom}
-                      onChange={e => { setTempFrom(e.target.value); clearError("tempFrom"); }}
-                      className={`w-full h-9 border p-2 rounded-lg text-sm focus:outline-none focus:ring-2 ${errors.tempFrom ? "border-red-400 focus:ring-red-300" : "border-amber-200 focus:ring-amber-300"}`}
-                    />
-                    {errors.tempFrom && <p className="text-red-500 text-xs mt-0.5">{errors.tempFrom}</p>}
-                  </div>
-                  <div>
-                    <label className="text-xs text-amber-600 font-medium">To</label>
-                    <input type="date" value={tempTo} min={tempFrom}
-                      onChange={e => { setTempTo(e.target.value); clearError("tempTo"); }}
-                      className={`w-full h-9 border p-2 rounded-lg text-sm focus:outline-none focus:ring-2 ${errors.tempTo ? "border-red-400 focus:ring-red-300" : "border-amber-200 focus:ring-amber-300"}`}
-                    />
-                    {errors.tempTo && <p className="text-red-500 text-xs mt-0.5">{errors.tempTo}</p>}
+          {/* Step 2: Constant Assignment */}
+          {currentStep === 2 && (
+            <div className="space-y-4 animate-fade-in">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Constant Assignment</p>
+              <div className="bg-blue-50/60 border border-blue-100 rounded-2xl p-6 space-y-4">
+                <div>
+                  <p className="text-sm font-bold text-blue-600 mb-1.5">🏠 Primary Fixed Location</p>
+                  <select value={dutyLocationId} onChange={e => { setDutyLocationId(e.target.value); clearError("dutyLocationId"); }}
+                    className="w-full h-11 border border-blue-200 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white text-sm">
+                    <option value="">Not assigned</option>
+                    {locations.map(l => <option key={l.id} value={l.id}>{l.place_name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold text-blue-600 mb-1.5">⏰ Constant Shift Timing</p>
+                  <select value={shiftName} onChange={e => {
+                    setShiftName(e.target.value);
+                    const defaultTime = DEFAULT_TIMINGS[e.target.value];
+                    if (defaultTime) {
+                      setStartTime(defaultTime.startSimple);
+                      setEndTime(defaultTime.endSimple);
+                    }
+                  }}
+                    className="w-full h-11 border border-blue-200 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white text-sm mb-3">
+                    <option value="">Select Constant Shift</option>
+                    {SHIFT_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs text-blue-600 font-medium">Start Time</label>
+                      <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+                        className="w-full h-10 border border-blue-200 p-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-blue-600 font-medium">End Time</label>
+                      <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
+                        className="w-full h-10 border border-blue-200 p-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+                    </div>
                   </div>
                 </div>
-              )}
-              {!tempLocationId && <p className="text-xs text-amber-400 mt-1">Select a location to enable date range</p>}
+              </div>
             </div>
-          </div>
-          <p className="text-xs text-gray-400 mb-6 flex items-center gap-1">
-            <span>💡</span> Attendance will be calculated at the <strong>temporary location</strong> during the override period, then revert to primary automatically.
-          </p>
+          )}
 
-          {/* Section: Login credentials */}
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Login Credentials</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">Email {editingId && <span className="text-gray-400">(autofilled from profile)</span>}</label>
-              <input type="email" placeholder="guard@example.com" value={email}
-                onChange={e => { setEmail(e.target.value); clearError("email"); }}
-                className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.email ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
-              />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+          {/* Step 3: Login Credentials */}
+          {currentStep === 3 && (
+            <div className="space-y-4 animate-fade-in">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Login Credentials</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1">Email {editingId && <span className="text-gray-400">(autofilled from profile)</span>}</label>
+                  <input type="email" placeholder="guard@example.com" value={email}
+                    onChange={e => { setEmail(e.target.value); clearError("email"); }}
+                    className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.email ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
+                  />
+                  {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1">
+                    Password {editingId && <span className="text-gray-400">(leave blank to keep current)</span>}
+                  </label>
+                  <input type="password" placeholder="Min 6 characters" value={password}
+                    onChange={e => { setPassword(e.target.value); clearError("password"); }}
+                    className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.password ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
+                  />
+                  {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">
-                Password {editingId && <span className="text-gray-400">(leave blank to keep current)</span>}
-              </label>
-              <input type="password" placeholder="Min 6 characters" value={password}
-                onChange={e => { setPassword(e.target.value); clearError("password"); }}
-                className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.password ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
-              />
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
-            </div>
-          </div>
+          )}
 
           {/* Actions */}
-          <div className="flex gap-3">
-            <button onClick={editingId ? updateGuard : addGuard} disabled={loading}
-              className={`px-8 py-3 rounded-xl text-white font-bold transition shadow-sm ${loading ? "bg-gray-300 cursor-not-allowed" : editingId ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}`}>
-              {loading ? "Saving…" : editingId ? "Update Guard" : "Onboard Guard"}
-            </button>
-            {editingId && (
-              <button onClick={cancelEdit} className="px-6 py-3 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-            )}
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-100">
+            <div className="flex gap-2">
+              {currentStep > 1 && (
+                <button type="button" onClick={() => setCurrentStep(currentStep - 1)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-350 text-gray-600 hover:bg-gray-50 transition text-sm font-semibold">
+                  Back
+                </button>
+              )}
+              {editingId && (
+                <button type="button" onClick={cancelEdit}
+                  className="px-5 py-2.5 rounded-xl border border-gray-300 text-red-600 hover:bg-red-50 transition text-sm font-semibold">
+                  Cancel
+                </button>
+              )}
+            </div>
+            
+            <div className="flex gap-2">
+              {currentStep < 3 ? (
+                <button type="button" onClick={() => {
+                  if (currentStep === 1 && !validateStep1()) return;
+                  setCurrentStep(currentStep + 1);
+                }}
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition text-sm shadow-md shadow-indigo-150">
+                  Next Step ➔
+                </button>
+              ) : (
+                <button type="button" onClick={editingId ? updateGuard : addGuard} disabled={loading}
+                  className={`px-8 py-2.5 rounded-xl text-white font-bold transition shadow-md ${loading ? "bg-gray-300 cursor-not-allowed" : editingId ? "bg-blue-600 hover:bg-blue-700 shadow-blue-150" : "bg-green-600 hover:bg-green-700 shadow-green-150"}`}>
+                  {loading ? "Saving…" : editingId ? "Save Changes" : "Onboard Guard"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -429,7 +957,7 @@ function Guards({ onGuardAdded }) {
             <table className="w-full border-collapse text-sm min-w-[800px]">
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  {["Name", "Phone", "Email", "Site", "Location", "Status", "Actions"].map(h => (
+                  {["Name", "Phone", "Email", "Site", "Location & Shift", "Status", "Actions"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-gray-500 font-semibold text-xs uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -446,25 +974,38 @@ function Guards({ onGuardAdded }) {
                       <td className="px-4 py-3 text-gray-500">{guard.email || guard.profiles?.email || "—"}</td>
                       <td className="px-4 py-3 text-gray-600">{guard.site}</td>
                       <td className="px-4 py-3">
-                        <div>
-                          <span className="font-medium text-gray-700">{eff.name}</span>
-                          {eff.isTemp && (
-                            <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">TEMP</span>
-                          )}
-                        </div>
-                        {guard.temp_location_id && !eff.isTemp && (
-                          <p className="text-xs text-amber-600 mt-0.5">
-                            Temp: {guard.temp_duty_location?.place_name} ({guard.temp_location_from} → {guard.temp_location_to})
-                          </p>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedShiftGuard(guard)}
+                          className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/50 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap"
+                        >
+                          📅 View Details
+                        </button>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${guard.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        <span className={`status-chip status-chip-${guard.status.toLowerCase()}`}>
                           {guard.status}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
+                          <button onClick={() => {
+                            setOverrideGuard(guard);
+                            setTempLocationId(guard.temp_location_id ? String(guard.temp_location_id) : "");
+                            setTempFrom(guard.temp_location_from || "");
+                            setTempTo(guard.temp_location_to || "");
+                            if (guard.tempShifts && guard.tempShifts.length > 0) {
+                              const tShift = guard.tempShifts[0];
+                              setTempShiftName(tShift.shift_name || "");
+                              setTempStartTime(tShift.start_time || "");
+                              setTempEndTime(tShift.end_time || "");
+                            } else {
+                              setTempShiftName("");
+                              setTempStartTime("");
+                              setTempEndTime("");
+                            }
+                          }}
+                            className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">⏱️ Temp Override</button>
                           <button onClick={() => startEdit(guard)}
                             className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">Edit</button>
                           <button onClick={() => setConfirmDelete({ id: guard.id, name: guard.name })}
