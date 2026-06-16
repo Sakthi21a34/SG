@@ -23,13 +23,17 @@ function Sidebar({ role, page, onNavigate, isOpen, onClose }) {
   const { t } = useLanguage();
   const navItems = ALL_NAV.filter((item) => item.roles.includes(role));
 
+  const appLogo = "/logo.png";
+
   return (
     <>
       {/* Desktop sidebar */}
       <div className="hidden md:flex md:flex-col w-64 h-screen sticky top-0 shrink-0 glass-sidebar shadow-lg">
         <div className="p-5 flex-1 flex flex-col">
-          <div className="mb-8 text-center">
-            <div className="text-3xl mb-1">🛡️</div>
+          <div className="mb-8 text-center flex flex-col items-center">
+            <div className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center bg-white shadow-md mb-2">
+              <img src={appLogo} alt="SecureSys Logo" className="w-full h-full object-cover" />
+            </div>
             <h1 className="text-xl font-bold text-gray-800">SecureSys</h1>
             {role && (
               <span className="inline-block mt-2 px-3 py-1 text-xs rounded-full bg-blue-100 text-blue-700 font-medium capitalize">{role}</span>
@@ -47,7 +51,7 @@ function Sidebar({ role, page, onNavigate, isOpen, onClose }) {
                       ? "bg-white/80 text-blue-600 shadow-sm font-medium"
                       : "text-gray-500 hover:text-gray-800 hover:bg-white/40"
                     }`}
-                >
+                  >
                   <Icon className="text-lg" />
                   <span>{t(item.key)}</span>
                 </li>
@@ -75,7 +79,9 @@ function Sidebar({ role, page, onNavigate, isOpen, onClose }) {
           {/* Drawer Header */}
           <div className="flex justify-between items-center mb-8 pb-4 border-b border-gray-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-xl shadow-md">🛡️</div>
+              <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-white shadow-sm shrink-0">
+                <img src={appLogo} alt="SecureSys Logo" className="w-full h-full object-cover" />
+              </div>
               <div>
                 <h1 className="text-base font-bold text-gray-800">SecureSys</h1>
                 {role && (

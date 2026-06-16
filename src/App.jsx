@@ -144,12 +144,14 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const appLogo = "/logo.png";
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f0f4ff 0%, #faf5ff 50%, #f0f9ff 100%)" }}>
         <div className="text-center animate-fade-in">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-4xl shadow-lg shadow-blue-200">
-            <span className="animate-bounce">🛡️</span>
+          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl overflow-hidden shadow-lg shadow-blue-200 flex items-center justify-center bg-white">
+            <img src={appLogo} alt="SecureSys Logo" className="w-full h-full object-cover animate-bounce" />
           </div>
           <div className="flex items-center justify-center gap-1.5 mb-3">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: "0ms" }} />
@@ -168,8 +170,8 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-indigo-50 via-white to-purple-50">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-indigo-100 text-center animate-fade-in">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-indigo-50 flex items-center justify-center text-4xl shadow-inner text-indigo-600">
-            🛡️
+          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center bg-white">
+            <img src={appLogo} alt="SecureSys Logo" className="w-full h-full object-cover" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-3">Permissions Required</h2>
           <p className="text-gray-500 text-sm mb-6 leading-relaxed">

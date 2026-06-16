@@ -65,7 +65,7 @@ function Circulars({ role, userGuardId }) {
 
   useEffect(() => {
     fetchCirculars();
-  }, []);
+  }, [role, userGuardId]);
 
   const CircularsList = () => (
     <div className="space-y-3">

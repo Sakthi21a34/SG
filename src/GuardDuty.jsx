@@ -126,10 +126,8 @@ const TABS = [
   { key: "requests", label: "Issues", icon: "💬", desc: "Report Problem" },
   { key: "incidents", label: "Incidents", icon: "🚨", desc: "Report Incidents" },
   { key: "circulars", label: "Circulars", icon: "📢", desc: "Announcements" },
-];
-
-/* ─── Circular feed (read-only) ─── */
-function CircularFeed({ guardId }) {
+];/* ─── Circular feed (read-only) ─── */
+function CircularFeed({ guardId, guardName }) {
   const [items, setItems] = useState([]);
   useEffect(() => {
     if (!navigator.onLine) {
@@ -145,24 +143,46 @@ function CircularFeed({ guardId }) {
     }
     query
       .then(({ data }) => {
-        setItems(data || []);
-        setCached("circulars", data || []);
+        let finalData = data || [];
+        if (guardName) {
+          finalData = finalData.filter(item => {
+            const pattern = /(?:Update|Assignment|Assigned|Update)\s*[\u2013-]\s*([^\n\r]+)/i;
+            const match = item.title.match(pattern);
+            if (match) {
+              const nameInTitle = match[1].trim();
+              if (nameInTitle.toLowerCase() !== guardName.toLowerCase()) {
+                return false;
+              }
+            }
+            const guardPattern = /Guard\s+([A-Za-z]+)/i;
+            const guardMatch = item.content.match(guardPattern);
+            if (guardMatch) {
+              const nameInContent = guardMatch[1].trim();
+              if (nameInContent.toLowerCase() !== guardName.toLowerCase()) {
+                return false;
+              }
+            }
+            return true;
+          });
+        }
+        setItems(finalData);
+        setCached("circulars", finalData);
       })
       .catch(() => {
         const cached = getCached("circulars");
         if (cached) setItems(cached);
       });
-  }, [guardId]);
+  }, [guardId, guardName]);
+
   return (
     <div className="space-y-3">
-      {items.length === 0
-        ? (
-          <div className="flex flex-col items-center py-16 text-gray-300">
-            <span className="text-5xl mb-3">📢</span>
-            <p className="font-medium text-gray-400">No announcements yet</p>
-          </div>
-        )
-        : items.map(c => (
+      {items.length === 0 ? (
+        <div className="flex flex-col items-center py-16 text-gray-300">
+          <span className="text-5xl mb-3">📢</span>
+          <p className="font-medium text-gray-400">No announcements yet</p>
+        </div>
+      ) : (
+        items.map(c => (
           <div key={c.id} className="bg-white rounded-2xl p-5 shadow-sm border border-blue-50 hover:shadow-md transition">
             <div className="flex justify-between items-start mb-2">
               <p className="font-bold text-gray-800">📌 {c.title}</p>
@@ -172,7 +192,8 @@ function CircularFeed({ guardId }) {
             </div>
             <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">{c.content}</p>
           </div>
-        ))}
+        ))
+      )}
     </div>
   );
 }
@@ -359,6 +380,7 @@ function GuardProfilePanel({ guardId, onClose, onSosPanic, sendingSos }) {
    MAIN COMPONENT
 ═══════════════════════════════════════════════════════ */
 function GuardDuty({ guardId, guardName }) {
+  const appLogo = "/logo.png";
   const { t, locale, setLocale } = useLanguage();
   const [activeTab, setActiveTab] = useState("duty");
   const [showRequestHistory, setShowRequestHistory] = useState(false);
@@ -1290,7 +1312,7 @@ function GuardDuty({ guardId, guardName }) {
           <h2 className="font-bold text-gray-800 text-lg">{t("official_announcements")}</h2>
           <p className="text-xs text-gray-400 mt-0.5">{t("circulars_desc")}</p>
         </div>
-        <CircularFeed guardId={guardId} />
+        <CircularFeed guardId={guardId} guardName={guardName} />
       </div>
     ),
   };
@@ -1324,7 +1346,9 @@ function GuardDuty({ guardId, guardName }) {
         <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-white/60 shadow-sm safe-top">
           <div className="px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-base shadow-md">🛡️</div>
+              <div className="w-8 h-8 rounded-xl overflow-hidden flex items-center justify-center bg-white shadow-sm shrink-0">
+                <img src={appLogo} alt="SecureSys Logo" className="w-full h-full object-cover" />
+              </div>
               <div>
                 <p className="font-bold text-gray-800 text-sm">{guardName || "Guard"}</p>
                 {isOnDuty && elapsedTime && (
@@ -1347,7 +1371,7 @@ function GuardDuty({ guardId, guardName }) {
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" /> Live
                 </span>
               )}
-              <Notifications role="guard" guardId={guardId} onNavigate={setActiveTab} />
+              <Notifications role="guard" guardId={guardId} guardName={guardName} onNavigate={setActiveTab} />
               <button
                 onClick={handleLogout}
                 className="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center text-sm shadow-sm hover:bg-red-100 transition shrink-0"
@@ -1416,11 +1440,11 @@ function GuardDuty({ guardId, guardName }) {
         <aside className="w-72 shrink-0 flex flex-col bg-white border-r border-gray-100 shadow-sm">
           {/* Brand / guard identity */}
           <div className="px-6 py-8 text-center border-b border-gray-50">
-            <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-4xl shadow-xl mb-4 relative">
-              🛡️
+            <div className="w-20 h-20 mx-auto mb-4 relative flex items-center justify-center">
+              <img src={appLogo} alt="SecureSys Logo" className="w-full h-full object-cover rounded-3xl shadow-xl" />
               <button 
                 onClick={() => setShowProfile(true)}
-                className="absolute -bottom-2 -right-2 w-8 h-8 bg-white text-blue-600 rounded-full shadow-md flex items-center justify-center hover:bg-gray-50 transition border border-gray-100"
+                className="absolute -bottom-1 -right-1 w-8 h-8 bg-white text-blue-600 rounded-full shadow-md flex items-center justify-center hover:bg-gray-50 transition border border-gray-100 z-10 font-bold"
                 title="Profile & Documents"
               >
                 👤
@@ -1489,7 +1513,7 @@ function GuardDuty({ guardId, guardName }) {
                   <span className="text-emerald-600 text-xs">{t("on_active_duty")}</span>
                 </div>
               )}
-              <Notifications role="guard" guardId={guardId} onNavigate={setActiveTab} />
+              <Notifications role="guard" guardId={guardId} guardName={guardName} onNavigate={setActiveTab} />
               <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-xl hidden lg:block">
                 {new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
               </div>

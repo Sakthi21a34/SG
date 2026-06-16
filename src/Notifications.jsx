@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import { FaBell } from "react-icons/fa";
 
-function Notifications({ role, guardId, onNavigate }) {
+function Notifications({ role, guardId, guardName, onNavigate }) {
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -27,6 +27,39 @@ function Notifications({ role, guardId, onNavigate }) {
     setUnreadCount((prev) => prev + 1);
   };
 
+  // Helper to check if a notification is allowed for the logged in guard
+  const isAllowed = (notif) => {
+    if (role?.toLowerCase() === "guard" && guardName) {
+      const pattern = /(?:Update|Assignment|Assigned|Update)\s*[\u2013-]\s*([^\n\r]+)/i;
+      
+      const titleMatch = notif.title?.match(pattern);
+      if (titleMatch) {
+        const nameInTitle = titleMatch[1].trim();
+        if (nameInTitle.toLowerCase() !== guardName.toLowerCase()) {
+          return false;
+        }
+      }
+
+      const msgMatch = notif.message?.match(pattern);
+      if (msgMatch) {
+        const nameInMsg = msgMatch[1].trim();
+        if (nameInMsg.toLowerCase() !== guardName.toLowerCase()) {
+          return false;
+        }
+      }
+
+      const guardPattern = /Guard\s+([A-Za-z]+)/i;
+      const guardMatch = notif.message?.match(guardPattern);
+      if (guardMatch) {
+        const nameInGuardMsg = guardMatch[1].trim();
+        if (nameInGuardMsg.toLowerCase() !== guardName.toLowerCase()) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
   useEffect(() => {
     let channel;
     const currentRole = role?.toLowerCase();
@@ -39,20 +72,45 @@ function Notifications({ role, guardId, onNavigate }) {
         .select("*")
         .eq("user_role", currentRole)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(40);
 
       if (currentRole === "guard" && guardId) {
-        // Guards only see notifications specifically for them
-        query = query.eq("guard_id", guardId);
+        // Guards see notifications specifically for them or broadcast notifications
+        query = query.or(`guard_id.eq.${guardId},guard_id.is.null`);
       }
 
-      const { data } = await query;
-      if (data) {
-        setNotifications(data.map(n => ({
+      const { data: notificationsData } = await query;
+      if (notificationsData) {
+        let finalNotifications = notificationsData.filter(isAllowed);
+
+        if (currentRole === "guard" && guardId) {
+          // Fetch circulars this guard is allowed to see to filter out irrelevant circular notifications
+          const { data: visibleCirculars } = await supabase
+            .from("circulars")
+            .select("title")
+            .or(`is_broadcast.eq.true,guard_id.eq.${guardId}`);
+
+          const allowedCircularTitles = new Set(visibleCirculars?.map(c => c.title) || []);
+
+          finalNotifications = finalNotifications.filter(n => {
+            if (n.title === "New Circular") {
+              const prefix = "A new announcement was posted: ";
+              if (n.message && n.message.startsWith(prefix)) {
+                const circTitle = n.message.substring(prefix.length);
+                return allowedCircularTitles.has(circTitle);
+              }
+            }
+            return true;
+          });
+        }
+
+        const mapped = finalNotifications.slice(0, 20).map(n => ({
           ...n,
           time: new Date(n.created_at) // map DB created_at to time
-        })));
-        setUnreadCount(data.filter(n => !n.is_read).length);
+        }));
+
+        setNotifications(mapped);
+        setUnreadCount(mapped.filter(n => !n.is_read).length);
       }
     };
 
@@ -65,11 +123,32 @@ function Notifications({ role, guardId, onNavigate }) {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_role=eq.${currentRole}` },
-        (payload) => {
+        async (payload) => {
           const newNotif = payload.new;
           
+          if (!isAllowed(newNotif)) return;
+
           // Filter guard-specific notifications
-          if (currentRole === "guard" && newNotif.guard_id && newNotif.guard_id !== guardId) return;
+          if (currentRole === "guard") {
+            if (newNotif.guard_id && newNotif.guard_id !== guardId) return;
+
+            if (newNotif.title === "New Circular") {
+              const prefix = "A new announcement was posted: ";
+              if (newNotif.message && newNotif.message.startsWith(prefix)) {
+                const circTitle = newNotif.message.substring(prefix.length);
+                const { data } = await supabase
+                  .from("circulars")
+                  .select("id")
+                  .eq("title", circTitle)
+                  .or(`is_broadcast.eq.true,guard_id.eq.${guardId}`);
+
+                if (!data || data.length === 0) {
+                  // Not allowed to see this circular, ignore notification
+                  return;
+                }
+              }
+            }
+          }
 
           console.log("New Persistent Notification Received:", newNotif);
           setNotifications((prev) => [

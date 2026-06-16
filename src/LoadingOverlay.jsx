@@ -7,7 +7,9 @@ export default function LoadingOverlay({ message = "Processing..." }) {
         <div className="relative w-16 h-16 mb-4">
           <div className="absolute inset-0 border-4 border-gray-100 rounded-full" />
           <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin" />
-          <div className="absolute inset-0 flex items-center justify-center text-xl">🛡️</div>
+          <div className="absolute inset-0 flex items-center justify-center p-2">
+            <img src="/logo.png" alt="SecureSys Logo" className="w-full h-full object-cover rounded-full" />
+          </div>
         </div>
         <p className="text-gray-800 font-bold text-center">{message}</p>
         <p className="text-gray-500 text-sm mt-1 text-center">Please wait a moment</p>
