@@ -415,7 +415,7 @@ function Dashboard({ role, userGuardId }) {
       )}
 
       {tourStep !== null && tourSteps[tourStep] && (
-        <div className="fixed bottom-6 right-6 z-[100001] max-w-sm w-full bg-slate-900 text-white p-5 rounded-2xl shadow-2xl border border-indigo-500 animate-fade-in">
+        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:bottom-6 md:right-6 z-[100001] max-w-none md:max-w-sm w-auto md:w-full bg-slate-900 text-white p-4 md:p-5 rounded-2xl shadow-2xl border border-indigo-500 animate-fade-in">
           <div className="flex justify-between items-center mb-2.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-full">
               System Tour — Step {tourStep + 1} of {tourSteps.length}
@@ -538,7 +538,7 @@ function Dashboard({ role, userGuardId }) {
       )}
 
       {tourStep !== null && tourSteps[tourStep] && (
-        <div className="fixed bottom-28 left-1/2 transform -translate-x-1/2 z-[100002] bg-slate-950/90 border border-indigo-500/30 text-white py-3 px-5 rounded-2xl shadow-xl flex items-center gap-2 max-w-xl w-11/12 text-center select-none backdrop-blur-md pointer-events-none animate-fade-in">
+        <div className="fixed top-4 md:top-auto md:bottom-28 left-1/2 transform -translate-x-1/2 z-[100002] bg-slate-950/90 border border-indigo-500/30 text-white py-3 px-5 rounded-2xl shadow-xl flex items-center gap-2 max-w-xl w-11/12 text-center select-none backdrop-blur-md pointer-events-none animate-fade-in">
           <span className="animate-pulse text-indigo-400 shrink-0">🎙️</span>
           <span className="text-[11px] md:text-xs font-semibold tracking-wide flex-1 text-slate-200">{tourSteps[tourStep].text}</span>
         </div>
