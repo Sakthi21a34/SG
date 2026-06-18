@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Guards from "./Guards";
 import DutyLocations from "./DutyLocations";
 
-function StaffRegistry() {
+function StaffRegistry({ tourTab }) {
   const [activeTab, setActiveTab] = useState("guards");
+
+  useEffect(() => {
+    if (tourTab) {
+      setActiveTab(tourTab);
+    }
+  }, [tourTab]);
 
   return (
     <div className="mt-8">

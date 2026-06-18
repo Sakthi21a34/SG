@@ -87,6 +87,25 @@ function Dashboard({ role, userGuardId }) {
   const { showToast, ToastContainer } = useToast();
   const [tourStep, setTourStep] = useState(null);
   const [tourMuted, setTourMuted] = useState(false);
+  const [highlightRect, setHighlightRect] = useState(null);
+  const [tourSpeed, setTourSpeed] = useState(1.0);
+  const [selectedVoiceName, setSelectedVoiceName] = useState("");
+  const [voices, setVoices] = useState([]);
+  const [showTourSettings, setShowTourSettings] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && 'speechSynthesis' in window) {
+      const loadVoices = () => {
+        const list = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith("en"));
+        setVoices(list);
+        if (list.length > 0 && !selectedVoiceName) {
+          setSelectedVoiceName(list[0].name);
+        }
+      };
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
 
   const tourSteps = [
     {
@@ -97,36 +116,59 @@ function Dashboard({ role, userGuardId }) {
     {
       title: "Real-time Analytics",
       page: "dashboard",
+      selector: ".tour-analytics-target",
       text: "Here, the dashboard shows you visual metrics of active guards, present staff, leaves, and outstanding incident alerts."
     },
     {
       title: "Navigation Sidebar",
       page: "dashboard",
+      selector: ".tour-sidebar-target",
       text: "Use this navigation sidebar to jump between tracking, staff management, rosters, incidents, and circulars."
     },
     {
-      title: "Live Operations & Tracking",
+      title: "Live Operations & Tracking Map",
       page: "live-ops",
+      tourView: "map",
+      selector: ".tour-liveops-target",
       text: "Under Live Operations, you can monitor active guards in the field. Live GPS coordinates are uploaded automatically and displayed on the interactive map."
     },
     {
-      title: "Staff Registry & Locations",
+      title: "Attendance Logging & Verification",
+      page: "live-ops",
+      tourView: "checkin",
+      selector: ".tour-liveops-target",
+      text: "You can also switch to the Attendance panel to view real-time check-in and check-out logs, view captured photos, or print reports."
+    },
+    {
+      title: "Staff Registry - Guard Profiles",
       page: "staff-registry",
-      text: "In the Staff Registry, you manage guard profiles, create logins, and define geofenced duty locations with strict radius limits."
+      tourTab: "guards",
+      selector: ".tour-staff-target",
+      text: "In the Staff Registry, you manage guard profiles and credentials so they can log in."
+    },
+    {
+      title: "Staff Registry - Geofenced Locations",
+      page: "staff-registry",
+      tourTab: "locations",
+      selector: ".tour-staff-target",
+      text: "Under the Duty Locations tab, you can set site boundaries, coordinates, and geofence radius limits."
     },
     {
       title: "Incident Reports",
       page: "incidents",
+      selector: ".tour-incidents-target",
       text: "The Incidents panel collects field logs from guards, complete with photo evidence, description, and recorded audio reports."
     },
     {
       title: "Broadcast Announcements",
       page: "circulars",
+      selector: ".tour-circulars-target",
       text: "Under Circulars, you can write messages that pop up immediately on every active guard's mobile screen."
     },
     {
       title: "System Settings",
       page: "settings",
+      selector: ".tour-settings-target",
       text: "Finally, in Settings, you can clear temporary storage photos, delete voice notes, or reset the system database while keeping your admin credentials secure."
     }
   ];
@@ -152,11 +194,57 @@ function Dashboard({ role, userGuardId }) {
         setTimeout(() => {
           const utterance = new SpeechSynthesisUtterance(currentStep.text);
           utterance.lang = "en-US";
+          utterance.rate = tourSpeed;
+          if (selectedVoiceName) {
+            const v = voices.find(voice => voice.name === selectedVoiceName);
+            if (v) utterance.voice = v;
+          }
           window.speechSynthesis.speak(utterance);
-        }, 150);
+        }, 180);
       }
     }
-  }, [tourStep, tourMuted]);
+  }, [tourStep, tourMuted, tourSpeed, selectedVoiceName, voices]);
+
+  useEffect(() => {
+    if (tourStep === null || !tourSteps[tourStep]) {
+      setHighlightRect(null);
+      return;
+    }
+
+    const updateHighlight = () => {
+      const currentStep = tourSteps[tourStep];
+      if (!currentStep.selector) {
+        setHighlightRect(null);
+        return;
+      }
+      const el = document.querySelector(currentStep.selector);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setHighlightRect({
+          top: rect.top + window.scrollY,
+          left: rect.left + window.scrollX,
+          width: rect.width,
+          height: rect.height
+        });
+        // Scroll the element into view smoothly if not fully visible
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        setHighlightRect(null);
+      }
+    };
+
+    // Wait slightly for page rendering to complete
+    const timer = setTimeout(updateHighlight, 350);
+
+    window.addEventListener("scroll", updateHighlight);
+    window.addEventListener("resize", updateHighlight);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", updateHighlight);
+      window.removeEventListener("resize", updateHighlight);
+    };
+  }, [tourStep, page]);
 
   useEffect(() => {
     if (!role) return;
@@ -273,19 +361,27 @@ function Dashboard({ role, userGuardId }) {
           </div>
 
           {page === "dashboard" && (
-            <>
+            <div className="tour-analytics-target w-full animate-fade-in">
               <Analytics role={role} />
               {role !== "admin" && <Charts />}
-            </>
+            </div>
           )}
-          {page === "live-ops" && <LiveOps role={role} />}
-          {page === "staff-registry" && role === "admin" && <StaffRegistry />}
+          {page === "live-ops" && (
+            <div className="tour-liveops-target w-full">
+              <LiveOps role={role} tourView={tourStep !== null && tourSteps[tourStep]?.page === "live-ops" ? tourSteps[tourStep]?.tourView : null} />
+            </div>
+          )}
+          {page === "staff-registry" && role === "admin" && (
+            <div className="tour-staff-target w-full">
+              <StaffRegistry tourTab={tourStep !== null && tourSteps[tourStep]?.page === "staff-registry" ? tourSteps[tourStep]?.tourTab : null} />
+            </div>
+          )}
           {page === "guard-profiles" && (role === "admin" || role === "supervisor") && <GuardProfiles />}
           {page === "system-users" && role === "admin" && <SystemAccess />}
-          {page === "incidents" && <Incidents role={role} />}
-          {page === "circulars" && <Circulars role={role} userGuardId={userGuardId} />}
+          {page === "incidents" && <div className="tour-incidents-target w-full"><Incidents role={role} /></div>}
+          {page === "circulars" && <div className="tour-circulars-target w-full"><Circulars role={role} userGuardId={userGuardId} /></div>}
           {page === "correction-requests" && <CorrectionRequests role={role} />}
-          {page === "settings" && role === "admin" && <Settings onStartTour={() => setTourStep(0)} />}
+          {page === "settings" && role === "admin" && <div className="tour-settings-target w-full"><Settings onStartTour={() => setTourStep(0)} /></div>}
         </div>
       </div>
 
@@ -324,7 +420,14 @@ function Dashboard({ role, userGuardId }) {
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-full">
               System Tour — Step {tourStep + 1} of {tourSteps.length}
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-2.5 items-center">
+              <button 
+                onClick={() => setShowTourSettings(!showTourSettings)} 
+                className="text-xs text-slate-400 hover:text-white transition"
+                title="Voice Settings"
+              >
+                ⚙️
+              </button>
               <button 
                 onClick={() => setTourMuted(!tourMuted)} 
                 className="text-xs text-slate-400 hover:text-white transition"
@@ -341,6 +444,36 @@ function Dashboard({ role, userGuardId }) {
             </div>
           </div>
           <h4 className="font-bold text-base mb-1">{tourSteps[tourStep].title}</h4>
+          {showTourSettings && (
+            <div className="bg-slate-800/80 border border-slate-700/50 p-3 rounded-xl mb-3 space-y-2 text-[11px] text-slate-300">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-slate-200">Voice Speed: {tourSpeed}x</span>
+                <input 
+                  type="range" 
+                  min="0.5" 
+                  max="2" 
+                  step="0.1" 
+                  value={tourSpeed} 
+                  onChange={e => setTourSpeed(parseFloat(e.target.value))}
+                  className="w-24 accent-indigo-500 h-1 rounded-lg"
+                />
+              </div>
+              {voices.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <span className="font-semibold text-slate-200">Narrator Voice:</span>
+                  <select 
+                    value={selectedVoiceName} 
+                    onChange={e => setSelectedVoiceName(e.target.value)}
+                    className="w-full bg-white border border-slate-350 text-slate-900 rounded p-1.5 text-[10px] outline-none font-medium"
+                  >
+                    {voices.map(v => (
+                      <option key={v.name} value={v.name} className="text-slate-900 bg-white">{v.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
           <p className="text-xs text-slate-300 leading-relaxed mb-4">{tourSteps[tourStep].text}</p>
           <div className="flex justify-between gap-2">
             <button 
@@ -377,6 +510,37 @@ function Dashboard({ role, userGuardId }) {
               )}
             </div>
           </div>
+        </div>
+      )}
+      {highlightRect && (
+        <>
+          {/* Dark Backdrop Spotlight */}
+          <div 
+            className="fixed pointer-events-none z-[100000] rounded-xl transition-all duration-300 border-2 border-indigo-500 shadow-[0_0_0_9999px_rgba(15,23,42,0.6)]"
+            style={{
+              top: `${highlightRect.top - window.scrollY}px`,
+              left: `${highlightRect.left - window.scrollX}px`,
+              width: `${highlightRect.width}px`,
+              height: `${highlightRect.height}px`
+            }}
+          />
+          {/* Pulsing Visual Anchor Pointer */}
+          <div 
+            className="fixed pointer-events-none z-[100001] w-4 h-4 bg-indigo-500 rounded-full transition-all duration-300"
+            style={{
+              top: `${highlightRect.top - window.scrollY - 8}px`,
+              left: `${highlightRect.left - window.scrollX + highlightRect.width - 8}px`
+            }}
+          >
+            <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75 animate-ping" />
+          </div>
+        </>
+      )}
+
+      {tourStep !== null && tourSteps[tourStep] && (
+        <div className="fixed bottom-28 left-1/2 transform -translate-x-1/2 z-[100002] bg-slate-950/90 border border-indigo-500/30 text-white py-3 px-5 rounded-2xl shadow-xl flex items-center gap-2 max-w-xl w-11/12 text-center select-none backdrop-blur-md pointer-events-none animate-fade-in">
+          <span className="animate-pulse text-indigo-400 shrink-0">🎙️</span>
+          <span className="text-[11px] md:text-xs font-semibold tracking-wide flex-1 text-slate-200">{tourSteps[tourStep].text}</span>
         </div>
       )}
     </>

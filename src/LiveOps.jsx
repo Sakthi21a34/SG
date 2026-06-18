@@ -1,9 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import MapView from "./MapView";
 import Attendance from "./Attendance";
 
-function LiveOps({ role }) {
+function LiveOps({ role, tourView }) {
   const [view, setView] = useState("map"); // "map" or "checkin"
+
+  useEffect(() => {
+    if (tourView) {
+      setView(tourView);
+    }
+  }, [tourView]);
 
   return (
     <div className="mt-2">

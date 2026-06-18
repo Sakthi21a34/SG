@@ -30,7 +30,7 @@ function Sidebar({ role, page, onNavigate, isOpen, onClose }) {
   return (
     <>
       {/* Desktop sidebar */}
-      <div className="hidden md:flex md:flex-col w-64 h-screen sticky top-0 shrink-0 glass-sidebar shadow-lg">
+      <div className="hidden md:flex md:flex-col w-64 h-screen sticky top-0 shrink-0 glass-sidebar shadow-lg tour-sidebar-target">
         <div className="p-5 flex-1 flex flex-col">
           <div className="mb-8 text-center flex flex-col items-center">
             <div className="w-14 h-14 rounded-2xl overflow-hidden flex items-center justify-center bg-white shadow-md mb-2">
