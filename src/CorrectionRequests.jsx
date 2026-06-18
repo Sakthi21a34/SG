@@ -124,7 +124,7 @@ function CorrectionRequests({ role, guardId }) {
         )}
 
         <div className="glass-card rounded-2xl overflow-hidden ring-1 ring-amber-200">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -200,6 +200,75 @@ function CorrectionRequests({ role, guardId }) {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile View */}
+          <div className="block md:hidden divide-y divide-gray-100">
+            {requests.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">No correction requests found.</div>
+            ) : (
+              requests.map((req) => (
+                <div key={req.id} className="p-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      {role === "admin" && <h4 className="font-bold text-gray-805 text-sm">{req.guards?.name || "Unknown Guard"}</h4>}
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {new Date(req.created_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                      </p>
+                    </div>
+                    <span className={`status-chip status-chip-${req.status.toLowerCase()}`}>
+                      {req.status}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-gray-700 bg-gray-50 p-3 rounded-xl space-y-2">
+                    <div>
+                      <span className="font-semibold block text-gray-400 text-[10px] uppercase">Type:</span>
+                      <span className={`inline-block px-2 py-0.5 text-[10px] rounded font-semibold capitalize ${
+                        req.request_type === "voice" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                      }`}>
+                        {req.request_type === "voice" ? "🎤 Voice Request" : "📝 Text Request"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="font-semibold block text-gray-400 text-[10px] uppercase">Note / Details:</span>
+                      <p className="text-xs">{req.message || "—"}</p>
+                    </div>
+
+                    <div>
+                      <span className="font-semibold block text-gray-400 text-[10px] uppercase">Voice Recording:</span>
+                      <div className="mt-1">
+                        {req.audio_url ? (
+                          <AudioPlayer src={req.audio_url} />
+                        ) : (
+                          <span className="text-gray-400 text-xs">No recording</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {role === "admin" && req.status === "Pending" && (
+                    <div className="flex gap-2 justify-end pt-1">
+                      <button
+                        onClick={() => handleStatus(req.id, "Rejected")}
+                        disabled={loading}
+                        className="bg-red-50 text-red-650 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => handleStatus(req.id, "Approved")}
+                        disabled={loading}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
+                      >
+                        Approve
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

@@ -634,7 +634,7 @@ function Attendance({ role, userGuardId, hideHistory }) {
 
             {/* Table Card */}
             <div className="glass-card rounded-2xl overflow-hidden shadow-sm ring-1 ring-gray-100">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto hidden md:block">
                 <table className="w-full border-collapse min-w-[800px]">
                   <thead>
                     <tr className="bg-gray-50 border-b">
@@ -715,6 +715,91 @@ function Attendance({ role, userGuardId, hideHistory }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile View */}
+              <div className="block md:hidden divide-y divide-gray-100">
+                {paginatedRecords.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400">No attendance records matching the filters.</div>
+                ) : (
+                  paginatedRecords.map((item) => (
+                    <div key={item.id} className="p-4 space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-gray-805 text-sm">{item.guards?.name || "Unknown"}</h4>
+                          <p className="text-xs text-gray-400 mt-0.5">{item.check_in_time?.split("T")[0] || item.date}</p>
+                        </div>
+                        {(() => {
+                          let displayStatus = item.status;
+                          let statusClass = "bg-gray-100 text-gray-700";
+                          if (item.status === "Present") {
+                            if (item.check_in_time && !item.check_out_time) {
+                              const checkInDate = new Date(item.check_in_time).toDateString();
+                              const todayDate = new Date().toDateString();
+                              if (checkInDate === todayDate) {
+                                displayStatus = "On Duty";
+                                statusClass = "status-chip-on-duty";
+                              } else {
+                                displayStatus = "Missed Checkout";
+                                statusClass = "status-chip-missed-checkout";
+                              }
+                            } else {
+                              displayStatus = "Present";
+                              statusClass = "status-chip-present";
+                            }
+                          } else if (item.status === "Absent") {
+                            statusClass = "status-chip-absent";
+                          } else {
+                            statusClass = "status-chip-leave";
+                          }
+                          return (
+                            <span className={`status-chip ${statusClass}`}>
+                              {displayStatus}
+                            </span>
+                          );
+                        })()}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-2.5 rounded-xl text-gray-600">
+                        <div>
+                          <span className="font-semibold block text-gray-450">Location:</span>
+                          {item.duty_locations?.place_name || "—"}
+                        </div>
+                        <div>
+                          <span className="font-semibold block text-gray-450">Check In:</span>
+                          {item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : item.check_in || "—"}
+                        </div>
+                        <div>
+                          <span className="font-semibold block text-gray-450">Check Out:</span>
+                          {item.check_out_time ? new Date(item.check_out_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : item.check_out || "—"}
+                        </div>
+                        <div>
+                          <span className="font-semibold block text-gray-450">Photos:</span>
+                          <div className="flex gap-2.5 mt-0.5">
+                            {item.check_in_photo ? (
+                              <button onClick={() => setPreviewPhoto(item.check_in_photo)} className="text-blue-600 hover:underline text-[10px] font-bold">📸 In</button>
+                            ) : null}
+                            {item.check_out_photo ? (
+                              <button onClick={() => setPreviewPhoto(item.check_out_photo)} className="text-blue-600 hover:underline text-[10px] font-bold">📸 Out</button>
+                            ) : null}
+                            {!item.check_in_photo && !item.check_out_photo ? "None" : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      {role === "admin" && (
+                        <div className="flex justify-end pt-1">
+                          <button
+                            onClick={() => deleteAttendanceRecord(item.id)}
+                            className="bg-red-50 text-red-650 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                          >
+                            🗑️ Delete Record
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
 
               {/* Pagination Controls */}

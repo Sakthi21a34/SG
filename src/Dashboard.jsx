@@ -96,7 +96,33 @@ function Dashboard({ role, userGuardId }) {
   useEffect(() => {
     if (typeof window !== "undefined" && 'speechSynthesis' in window) {
       const loadVoices = () => {
-        const list = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith("en"));
+        let list = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith("en"));
+        
+        const isMale = (voice) => {
+          const name = voice.name.toLowerCase();
+          return name.includes("male") || 
+                 name.includes("david") || 
+                 name.includes("mark") || 
+                 name.includes("george") || 
+                 name.includes("guy") ||
+                 name.includes("james") ||
+                 name.includes("john") ||
+                 name.includes("daniel") ||
+                 name.includes("en-us-standard-b") ||
+                 name.includes("en-us-standard-c") ||
+                 name.includes("en-us-standard-d") ||
+                 name.includes("en-us-wavenet-b") ||
+                 name.includes("en-us-wavenet-d");
+        };
+        
+        list.sort((a, b) => {
+          const aMale = isMale(a);
+          const bMale = isMale(b);
+          if (aMale && !bMale) return -1;
+          if (!aMale && bMale) return 1;
+          return 0;
+        });
+
         setVoices(list);
         if (list.length > 0 && !selectedVoiceName) {
           setSelectedVoiceName(list[0].name);

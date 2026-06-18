@@ -132,7 +132,7 @@ function SystemAccess() {
         </div>
 
         <div className="glass-card rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -157,6 +157,25 @@ function SystemAccess() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile list view */}
+          <div className="block md:hidden divide-y divide-gray-100">
+            {users.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">No users found.</div>
+            ) : (
+              users.map((user) => (
+                <div key={user.id} className="p-4 flex justify-between items-center gap-3">
+                  <div>
+                    <h4 className="font-bold text-gray-805 text-sm">{user.full_name}</h4>
+                    <p className="text-xs text-gray-500">{user.email}</p>
+                  </div>
+                  <span className={`status-chip status-chip-${user.role}`}>
+                    {user.role}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

@@ -374,7 +374,7 @@ function DutyLocations() {
         </div>
 
         <div className="glass-card rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -406,6 +406,32 @@ function DutyLocations() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile list view */}
+          <div className="block md:hidden divide-y divide-gray-100">
+            {locations.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">No duty locations set.</div>
+            ) : (
+              locations.map((loc) => (
+                <div key={loc.id} className="p-4 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-gray-800 text-sm">📍 {loc.place_name}</h4>
+                    <span className="text-xs bg-blue-50 text-blue-705 font-bold px-2 py-0.5 rounded-full">Radius: {loc.radius_meters}m</span>
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-0.5">
+                    <p><span className="font-semibold text-gray-400">Latitude:</span> {loc.latitude}</p>
+                    <p><span className="font-semibold text-gray-400">Longitude:</span> {loc.longitude}</p>
+                  </div>
+                  <div className="flex gap-3 pt-1">
+                    <button onClick={() => handleEdit(loc)}
+                      className="text-blue-600 hover:underline text-xs font-bold">Edit</button>
+                    <button onClick={() => deleteLocation(loc.id)}
+                      className="text-red-650 hover:underline text-xs font-bold">Delete</button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

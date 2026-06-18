@@ -1048,7 +1048,7 @@ function Guards({ onGuardAdded }) {
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="font-bold text-gray-800 text-lg">Guard Profiles ({guards.length})</h2>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full border-collapse text-sm min-w-[800px]">
               <thead>
                 <tr className="bg-gray-50 border-b">
@@ -1100,7 +1100,7 @@ function Guards({ onGuardAdded }) {
                               setTempEndTime("");
                             }
                           }}
-                            className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">⏱️ Temp Override</button>
+                            className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition text-nowrap">⏱️ Temp Override</button>
                           <button onClick={() => startEdit(guard)}
                             className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">Edit</button>
                           <button onClick={() => setConfirmDelete({ id: guard.id, name: guard.name })}
@@ -1112,6 +1112,93 @@ function Guards({ onGuardAdded }) {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile list view */}
+          <div className="block md:hidden divide-y divide-gray-100">
+            {guards.length === 0 ? (
+              <div className="p-8 text-center text-gray-400">No guards found.</div>
+            ) : (
+              guards.map(guard => {
+                const eff = effectiveLocation(guard);
+                return (
+                  <div key={guard.id} className="p-4 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-gray-800 text-sm">{guard.name}</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">{guard.email || guard.profiles?.email || "No email"}</p>
+                      </div>
+                      <span className={`status-chip status-chip-${guard.status.toLowerCase()}`}>
+                        {guard.status}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 bg-gray-50 p-2.5 rounded-xl">
+                      <div>
+                        <span className="font-semibold block text-gray-400">Phone:</span>
+                        {guard.phone || "—"}
+                      </div>
+                      <div>
+                        <span className="font-semibold block text-gray-400">Site:</span>
+                        {guard.site}
+                      </div>
+                      <div className="col-span-2">
+                        <span className="font-semibold block text-gray-400">Location:</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="font-medium text-gray-850">{eff.name}</span>
+                          {eff.isTemp && (
+                            <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">TEMP OVERRIDE</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShiftGuard(guard)}
+                        className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/50 px-2 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap text-center"
+                      >
+                        📅 Schedule
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setOverrideGuard(guard);
+                          setTempLocationId(guard.temp_location_id ? String(guard.temp_location_id) : "");
+                          setTempFrom(guard.temp_location_from || "");
+                          setTempTo(guard.temp_location_to || "");
+                          if (guard.tempShifts && guard.tempShifts.length > 0) {
+                            const tShift = guard.tempShifts[0];
+                            setTempShiftName(tShift.shift_name || "");
+                            setTempStartTime(tShift.start_time || "");
+                            setTempEndTime(tShift.end_time || "");
+                          } else {
+                            setTempShiftName("");
+                            setTempStartTime("");
+                            setTempEndTime("");
+                          }
+                        }}
+                        className="bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition"
+                      >
+                        ⏱️ Temp
+                      </button>
+                      <button 
+                        onClick={() => startEdit(guard)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => setConfirmDelete({ id: guard.id, name: guard.name })}
+                        className="bg-red-500 hover:bg-red-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

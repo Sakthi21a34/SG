@@ -788,7 +788,7 @@ function Analytics({ role }) {
           </div>
 
           <div className="glass-card rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto hidden md:block">
               <table className="w-full border-collapse min-w-[800px] text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b">
@@ -821,6 +821,43 @@ function Analytics({ role }) {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile View */}
+            <div className="block md:hidden divide-y divide-gray-100">
+              {attendanceRecords.length === 0 ? (
+                <div className="p-8 text-center text-gray-400">No shift records matching criteria.</div>
+              ) : (
+                attendanceRecords.map(item => (
+                  <div key={item.id} className="p-4 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-gray-805 text-sm">{item.guards?.name || "Unknown"}</h4>
+                        <p className="text-xs text-gray-400 mt-0.5">{item.check_in_time ? new Date(item.check_in_time).toLocaleDateString() : "—"}</p>
+                      </div>
+                      <span className={`status-chip status-chip-${item.status.toLowerCase()}`}>
+                        {item.status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-2.5 rounded-xl text-gray-600">
+                      <div>
+                        <span className="font-semibold block text-gray-450">Location:</span>
+                        {item.duty_locations?.place_name || "—"}
+                      </div>
+                      <div />
+                      <div>
+                        <span className="font-semibold block text-gray-450">Check In:</span>
+                        {item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                      </div>
+                      <div>
+                        <span className="font-semibold block text-gray-450">Check Out:</span>
+                        {item.check_out_time ? new Date(item.check_out_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -856,7 +893,7 @@ function Analytics({ role }) {
             <div className="px-6 py-4 border-b border-gray-100">
               <h4 className="font-bold text-gray-800 text-sm">Recent Logged Incidents ({incidentsRecords.length})</h4>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto hidden md:block">
               <table className="w-full border-collapse text-sm min-w-[700px]">
                 <thead>
                   <tr className="bg-gray-50 border-b">
@@ -887,6 +924,32 @@ function Analytics({ role }) {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile View */}
+            <div className="block md:hidden divide-y divide-gray-100">
+              {incidentsRecords.length === 0 ? (
+                <div className="p-8 text-center text-gray-400">No incidents reported.</div>
+              ) : (
+                incidentsRecords.map(item => (
+                  <div key={item.id} className="p-4 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="px-2 py-0.5 bg-red-50 text-red-655 font-bold rounded text-[10px] border border-red-250">{item.incident_type}</span>
+                        <h4 className="font-bold text-gray-805 text-sm mt-1">{item.guards?.name || "Unknown"}</h4>
+                      </div>
+                      <span className={`status-chip ${item.incident_status === 'Closed' ? 'status-chip-approved' : 'status-chip-pending'}`}>
+                        {item.incident_status}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-gray-650 bg-gray-50 p-2.5 rounded-xl space-y-1">
+                      <p><span className="font-semibold text-gray-400 text-[10px] uppercase">Description:</span> {item.description}</p>
+                      <p><span className="font-semibold text-gray-400 text-[10px] uppercase">Date:</span> {new Date(item.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
