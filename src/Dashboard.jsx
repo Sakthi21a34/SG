@@ -379,12 +379,6 @@ function Dashboard({ role, userGuardId }) {
           </div>
         </div>
       )}
-    </>         >
-              {t("acknowledge_alert")}
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }
