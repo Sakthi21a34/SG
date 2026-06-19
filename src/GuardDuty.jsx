@@ -385,6 +385,8 @@ function GuardDuty({ guardId, guardName }) {
   const [leaveEnd, setLeaveEnd] = useState("");
   const [leaveReason, setLeaveReason] = useState("");
   const [isOnLeaveToday, setIsOnLeaveToday] = useState(false);
+  const [showLeaveHistory, setShowLeaveHistory] = useState(false);
+  const [leaveHistory, setLeaveHistory] = useState([]);
   const { showToast, ToastContainer } = useToast();
 
   function handleSosPanic() {
@@ -848,6 +850,22 @@ function GuardDuty({ guardId, guardName }) {
       setIsOnLeaveToday(data && data.length > 0);
     } catch (err) {
       console.error("Error fetching leave status:", err);
+    }
+  }
+
+  async function fetchLeaveHistory() {
+    if (!guardId) return;
+    try {
+      const { data, error } = await supabase
+        .from("attendance_requests")
+        .select("*")
+        .eq("guard_id", guardId)
+        .eq("request_type", "leave")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setLeaveHistory(data || []);
+    } catch (err) {
+      console.error("Error fetching leave history:", err);
     }
   }
 
@@ -1350,7 +1368,8 @@ function GuardDuty({ guardId, guardName }) {
               setLeaveStart(new Date().toISOString().split("T")[0]);
               setLeaveEnd(new Date().toISOString().split("T")[0]);
               setLeaveReason("");
-              setShowLeaveModal(false);
+              setShowLeaveHistory(false);
+              fetchLeaveHistory();
               setShowLeaveModal(true);
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-xl text-xs font-bold transition"
@@ -1478,66 +1497,132 @@ function GuardDuty({ guardId, guardName }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-gray-150 animate-scale-in">
             <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800">🌴 Request Leave</h3>
-              <button onClick={() => setShowLeaveModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+              <h3 className="text-lg font-bold text-gray-800">
+                {showLeaveHistory ? "📋 Leave History" : "🌴 Request Leave"}
+              </h3>
+              <div className="flex items-center gap-3">
+                {!showLeaveHistory ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      fetchLeaveHistory();
+                      setShowLeaveHistory(true);
+                    }}
+                    className="text-xs bg-gray-50 text-gray-600 border border-gray-250/50 px-2.5 py-1.5 rounded-lg font-bold hover:bg-gray-105 transition"
+                  >
+                    🕒 History
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowLeaveHistory(false)}
+                    className="text-xs bg-amber-50 text-amber-700 border border-amber-250/50 px-2.5 py-1.5 rounded-lg font-bold hover:bg-amber-101 transition"
+                  >
+                    ⬅️ Form
+                  </button>
+                )}
+                <button onClick={() => setShowLeaveModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+              </div>
             </div>
             
-            <form onSubmit={submitLeaveRequest} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+            {showLeaveHistory ? (
+              <div className="space-y-3">
+                <div className="max-h-[50vh] overflow-y-auto pr-1 space-y-3">
+                  {leaveHistory.length === 0 ? (
+                    <p className="text-gray-400 text-sm text-center py-8">No leave requests found.</p>
+                  ) : (
+                    leaveHistory.map((item) => (
+                      <div key={item.id} className="bg-gray-50 border border-gray-100 p-3 rounded-2xl space-y-1.5 text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold text-amber-800">
+                            📅 {item.start_date} to {item.end_date}
+                          </span>
+                          <span className={`status-chip text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                            item.status === "Approved" ? "bg-green-100 text-green-700 border-green-200" :
+                            item.status === "Rejected" ? "bg-red-100 text-red-700 border-red-200" :
+                            "bg-amber-100 text-amber-700 border-amber-200"
+                          }`}>
+                            {item.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 leading-relaxed">
+                          {item.message || "No reason provided."}
+                        </p>
+                        <p className="text-[10px] text-gray-400 text-right">
+                          Requested: {new Date(item.created_at).toLocaleDateString([], { day: "numeric", month: "short" })}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="flex justify-end pt-3 border-t border-gray-100 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowLeaveModal(false)}
+                    className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-705 rounded-xl transition text-sm font-bold"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={submitLeaveRequest} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={leaveStart}
+                      onChange={(e) => setLeaveStart(e.target.value)}
+                      required
+                      className="w-full h-10 border border-gray-200 p-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-350 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={leaveEnd}
+                      min={leaveStart}
+                      onChange={(e) => setLeaveEnd(e.target.value)}
+                      required
+                      className="w-full h-10 border border-gray-200 p-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-350 bg-white"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={leaveStart}
-                    onChange={(e) => setLeaveStart(e.target.value)}
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Reason for Leave</label>
+                  <textarea
+                    value={leaveReason}
+                    onChange={(e) => setLeaveReason(e.target.value)}
+                    placeholder="Enter reason..."
                     required
-                    className="w-full h-10 border border-gray-200 p-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-350 bg-white"
+                    rows={3}
+                    className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-355 bg-white resize-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={leaveEnd}
-                    min={leaveStart}
-                    onChange={(e) => setLeaveEnd(e.target.value)}
-                    required
-                    className="w-full h-10 border border-gray-200 p-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-350 bg-white"
-                  />
+
+                {error && <p className="text-red-500 text-xs">{error}</p>}
+
+                <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowLeaveModal(false)}
+                    className="px-4 py-2 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 transition text-sm font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition text-sm font-bold shadow-md shadow-amber-200"
+                  >
+                    {submitting ? "Sending..." : "Submit Request"}
+                  </button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">Reason for Leave</label>
-                <textarea
-                  value={leaveReason}
-                  onChange={(e) => setLeaveReason(e.target.value)}
-                  placeholder="Enter reason..."
-                  required
-                  rows={3}
-                  className="w-full border border-gray-200 p-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-355 bg-white resize-none"
-                />
-              </div>
-
-              {error && <p className="text-red-500 text-xs">{error}</p>}
-
-              <div className="flex gap-2 justify-end pt-3 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setShowLeaveModal(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 transition text-sm font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition text-sm font-bold shadow-md shadow-amber-200"
-                >
-                  {submitting ? "Sending..." : "Submit Request"}
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
