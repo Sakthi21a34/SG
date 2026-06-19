@@ -1,14 +1,86 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
 import LoadingOverlay from "./LoadingOverlay";
 import ConfirmModal from "./ConfirmModal";
+
+const SHIFT_OPTIONS = ["Morning Shift", "Evening Shift", "Night Shift", "Full Day"];
+const DEFAULT_TIMINGS = {
+  "Morning Shift": { start: "06:00", end: "14:00" },
+  "Evening Shift": { start: "14:00", end: "22:00" },
+  "Night Shift": { start: "22:00", end: "06:00" },
+  "Full Day": { start: "08:00", end: "20:00" },
+};
 
 function Settings({ onStartTour }) {
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
   const [confirmConfig, setConfirmConfig] = useState(null);
   const { showToast, ToastContainer } = useToast();
+  const [shiftTimings, setShiftTimings] = useState(DEFAULT_TIMINGS);
+
+  async function fetchTimings() {
+    try {
+      const { data } = await supabase.from("shift_timings").select("*");
+      if (data && data.length > 0) {
+        const timings = {};
+        data.forEach((row) => {
+          timings[row.shift_name] = { start: row.start_time?.substring(0, 5), end: row.end_time?.substring(0, 5) };
+        });
+        setShiftTimings((prev) => ({ ...prev, ...timings }));
+      }
+    } catch {
+      showToast("Could not load shift timings.", "error");
+    }
+  }
+
+  async function saveTimings() {
+    setLoading(true);
+    setLoadingMsg("Saving shift timings...");
+    try {
+      for (const [shiftName, times] of Object.entries(shiftTimings)) {
+        const { error } = await supabase.from("shift_timings").upsert(
+          { shift_name: shiftName, start_time: times.start, end_time: times.end },
+          { onConflict: "shift_name" }
+        );
+        if (error) {
+          showToast("Error saving timings. Please try again.", "error");
+          setLoading(false);
+          return;
+        }
+      }
+      showToast("Shift timings saved successfully!", "success");
+    } catch {
+      showToast("Network error. Please try again.", "error");
+    } finally {
+      setLoading(false);
+      setLoadingMsg("");
+    }
+  }
+
+  async function resetTimings() {
+    setLoading(true);
+    setLoadingMsg("Resetting timings...");
+    try {
+      for (const [shiftName, times] of Object.entries(DEFAULT_TIMINGS)) {
+        await supabase.from("shift_timings").upsert(
+          { shift_name: shiftName, start_time: times.start, end_time: times.end },
+          { onConflict: "shift_name" }
+        );
+      }
+      setShiftTimings(DEFAULT_TIMINGS);
+      showToast("Timings reset to defaults!", "success");
+    } catch {
+      showToast("Network error. Please try again.", "error");
+    } finally {
+      setLoading(false);
+      setLoadingMsg("");
+    }
+  }
+
+  useEffect(() => {
+    fetchTimings();
+  }, []);
 
   async function executeClearAllGuardsPhotos() {
     setLoading(true);
@@ -229,6 +301,61 @@ function Settings({ onStartTour }) {
                 Start Help Tour
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Shift Timings Card */}
+        <div className="glass-card rounded-3xl p-6 ring-1 ring-purple-150">
+          <h2 className="text-xl font-bold text-gray-800 mb-2">⏰ Constant Shift Timings Settings</h2>
+          <p className="text-sm text-gray-500 mb-6">Configure the default start and end times for scheduled shift presets. These are used as autofill values when registering or editing guards.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {SHIFT_OPTIONS.map((shift) => (
+              <div key={shift} className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <h3 className="font-bold text-gray-700 mb-2.5">{shift}</h3>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-400 mb-1">Start Time</label>
+                    <input
+                      type="time"
+                      value={shiftTimings[shift]?.start || ""}
+                      onChange={(e) => setShiftTimings((prev) => ({
+                        ...prev,
+                        [shift]: { ...prev[shift], start: e.target.value },
+                      }))}
+                      className="w-full h-10 border border-gray-200 p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 bg-white text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-400 mb-1">End Time</label>
+                    <input
+                      type="time"
+                      value={shiftTimings[shift]?.end || ""}
+                      onChange={(e) => setShiftTimings((prev) => ({
+                        ...prev,
+                        [shift]: { ...prev[shift], end: e.target.value },
+                      }))}
+                      className="w-full h-10 border border-gray-200 p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 bg-white text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-gray-100">
+            <button
+              onClick={resetTimings}
+              className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-550 hover:bg-gray-50 transition text-xs font-bold"
+            >
+              Reset to Defaults
+            </button>
+            <button
+              onClick={saveTimings}
+              className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition text-xs font-bold shadow-md shadow-indigo-150"
+            >
+              Save Shift Timings
+            </button>
           </div>
         </div>
       </div>

@@ -1305,7 +1305,7 @@ function GuardDuty({ guardId, guardName }) {
   const content = {
     duty: dutyPanel,
     history: historyPanel,
-    incidents: <div className="-mt-10"><Incidents role="guard" guardId={guardId} /></div>,
+    incidents: <Incidents role="guard" guardId={guardId} />,
     circulars: (
       <div className="space-y-4">
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5">

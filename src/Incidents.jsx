@@ -5,7 +5,7 @@ import { addToQueue, getCached, setCached } from "./lib/offlineDb";
 import LoadingOverlay from "./LoadingOverlay";
 import CustomSelect from "./CustomSelect";
 
-const INCIDENT_TYPES = ["Theft", "Fire", "Fight", "Suspicious Activity", "Emergency", "Visitor Issue"];
+const INCIDENT_TYPES = ["Theft", "Fire", "Fight", "Suspicious Activity", "Emergency", "Visitor Issue", "Others"];
 const STATUS_OPTIONS = ["Open", "Investigating", "Closed"];
 
 function Incidents({ role, guardId: currentGuardId }) {

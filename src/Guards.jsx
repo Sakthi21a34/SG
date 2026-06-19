@@ -26,6 +26,7 @@ async function autoNotify(title, message, guardId = null, isBroadcast = false) {
 function Guards({ onGuardAdded }) {
   const [guards, setGuards] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [shiftTimings, setShiftTimings] = useState(DEFAULT_TIMINGS);
 
   // Wizard Step State
   const [currentStep, setCurrentStep] = useState(1);
@@ -262,6 +263,28 @@ function Guards({ onGuardAdded }) {
       const { data } = await supabase.from("duty_locations").select("*").order("place_name");
       setLocations(data || []);
     } catch { /* ignore */ }
+  }
+
+  async function fetchShiftTimings() {
+    try {
+      const { data } = await supabase.from("shift_timings").select("*");
+      if (data && data.length > 0) {
+        const timings = {};
+        data.forEach((row) => {
+          const startHHMM = row.start_time?.substring(0, 5) || "00:00";
+          const endHHMM = row.end_time?.substring(0, 5) || "00:00";
+          timings[row.shift_name] = {
+            start: `${startHHMM}:00`,
+            startSimple: startHHMM,
+            end: `${endHHMM}:00`,
+            endSimple: endHHMM
+          };
+        });
+        setShiftTimings((prev) => ({ ...prev, ...timings }));
+      }
+    } catch (err) {
+      console.error("Error fetching shift timings in Guards:", err);
+    }
   }
 
   /* ── add guard ── */
@@ -588,7 +611,7 @@ function Guards({ onGuardAdded }) {
     }
   }
 
-  useEffect(() => { fetchGuards(); fetchLocations(); }, []);
+  useEffect(() => { fetchGuards(); fetchLocations(); fetchShiftTimings(); }, []);
   function clearError(field) { setErrors(prev => ({ ...prev, [field]: "" })); }
 
   /* ── effective location for display ── */
@@ -689,7 +712,7 @@ function Guards({ onGuardAdded }) {
                     value={tempShiftName}
                     onChange={val => {
                       setTempShiftName(val);
-                      const defaultTime = DEFAULT_TIMINGS[val];
+                      const defaultTime = shiftTimings[val];
                       if (defaultTime) {
                         setTempStartTime(defaultTime.startSimple);
                         setTempEndTime(defaultTime.endSimple);
@@ -959,7 +982,7 @@ function Guards({ onGuardAdded }) {
                     value={shiftName}
                     onChange={val => {
                       setShiftName(val);
-                      const defaultTime = DEFAULT_TIMINGS[val];
+                      const defaultTime = shiftTimings[val];
                       if (defaultTime) {
                         setStartTime(defaultTime.startSimple);
                         setEndTime(defaultTime.endSimple);
