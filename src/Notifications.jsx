@@ -173,7 +173,7 @@ function Notifications({ role, guardId, guardName, onNavigate }) {
     if (onNavigate) {
       if (notif.title === "New Issue Reported") onNavigate("correction-requests");
       else if (notif.title === "New Incident Reported") onNavigate("incidents");
-      else if (notif.title === "Request Updated") onNavigate("requests");
+      else if (notif.title === "Request Updated" || notif.title?.includes("Request")) onNavigate("history_requests");
       else if (notif.title === "New Circular") onNavigate("circulars");
     }
     setIsOpen(false);
