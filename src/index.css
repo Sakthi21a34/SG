@@ -64,7 +64,8 @@ table, tr, th, td, thead, tbody {
 
 .status-chip-pending,
 .status-chip-leave,
-.status-chip-missed-checkout {
+.status-chip-missed-checkout,
+.status-chip-half-day {
   background-color: #fffbeb !important;
   color: #b45309 !important;
   border-color: #fde68a !important;

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
 import Camera from "./Camera";
-import { calcDistance, getLocation, uploadPhoto } from "./lib/geoUtils";
+import { calcDistance, getLocation, uploadPhoto, calculateAttendanceStatus } from "./lib/geoUtils";
 import LoadingOverlay from "./LoadingOverlay";
 import CustomSelect from "./CustomSelect";
 import ConfirmModal from "./ConfirmModal";
@@ -342,12 +342,28 @@ function Attendance({ role, userGuardId, hideHistory }) {
         const photoUrl = await uploadPhoto(guardId, dataUrl, supabase);
         const pos = await getLocation();
         const now = new Date().toISOString();
+
+        // Calculate status based on guard's scheduled shift on the date of check-in
+        const checkInRecord = records.find(r => r.id === currentAttendanceId);
+        const checkInTime = checkInRecord?.check_in_time;
+        const checkInDate = checkInTime?.split("T")[0] || now.split("T")[0];
+
+        // Fetch guard shifts
+        const { data: guardShifts } = await supabase.from("shifts").select("*").eq("guard_id", guardId);
+        const tempShift = (guardShifts || []).find(s => s.shift_date === checkInDate);
+        const constantShift = (guardShifts || []).find(s => s.shift_date === null);
+        const activeShift = tempShift || constantShift || null;
+
+        const calculatedStatus = calculateAttendanceStatus(checkInTime, now, activeShift);
+
         const { error } = await supabase.from("attendance").update({
           check_out_time: now,
           check_out_photo: photoUrl,
           check_out_lat: pos.lat,
           check_out_long: pos.lng,
+          status: calculatedStatus,
         }).eq("id", currentAttendanceId);
+
         if (error) { showToast("Error checking out.", "error"); setLoading(false); setGpsStatus(null); return; }
         stopLiveTracking();
         setIsOnDuty(false);
@@ -679,6 +695,8 @@ function Attendance({ role, userGuardId, hideHistory }) {
                               }
                             } else if (item.status === "Absent") {
                               statusClass = "status-chip-absent";
+                            } else if (item.status === "Half Day") {
+                              statusClass = "status-chip-half-day";
                             } else {
                               statusClass = "status-chip-leave";
                             }
@@ -749,6 +767,8 @@ function Attendance({ role, userGuardId, hideHistory }) {
                             }
                           } else if (item.status === "Absent") {
                             statusClass = "status-chip-absent";
+                          } else if (item.status === "Half Day") {
+                            statusClass = "status-chip-half-day";
                           } else {
                             statusClass = "status-chip-leave";
                           }

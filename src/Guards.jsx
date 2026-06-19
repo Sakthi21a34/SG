@@ -79,8 +79,8 @@ function Guards({ onGuardAdded }) {
         errs.phone = "Enter a valid international phone number";
       }
     }
-    if (!site.trim()) errs.site = "Site is required";
-    else if (site.trim().length < 2) errs.site = "Site must be at least 2 characters";
+    if (!site.trim()) errs.site = "Place is required";
+    else if (site.trim().length < 2) errs.site = "Place must be at least 2 characters";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -108,7 +108,7 @@ function Guards({ onGuardAdded }) {
         errs.phone = "Enter a valid international phone number";
       }
     }
-    if (!site.trim()) errs.site = "Site is required";
+    if (!site.trim()) errs.site = "Place is required";
     if (!editingId && email.trim() && !password) errs.password = "Password required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -273,7 +273,15 @@ function Guards({ onGuardAdded }) {
       if (email.trim() && password) {
         const { data: { session: saved } } = await supabase.auth.getSession();
         const { data: authData, error: authErr } = await supabase.auth.signUp({ email: email.trim(), password });
-        if (authErr) { showToast(`Auth Error: ${authErr.message}`, "error"); setLoading(false); return; }
+        if (authErr) {
+          let msg = authErr.message;
+          if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("already exists")) {
+            msg = "This email is already registered. If you reset the database recently, please run the SQL cleanup script in Supabase to clear old Auth accounts.";
+          }
+          showToast(`Auth Error: ${msg}`, "error");
+          setLoading(false);
+          return;
+        }
         if (saved) {
           const { error: sessionErr } = await supabase.auth.setSession({ access_token: saved.access_token, refresh_token: saved.refresh_token });
           if (sessionErr) showToast("Session issue, please re-login.", "error");
@@ -907,8 +915,8 @@ function Guards({ onGuardAdded }) {
                   {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-500 mb-1">Site</label>
-                  <input type="text" placeholder="Site / Area" value={site}
+                  <label className="block text-sm text-gray-500 mb-1">Place</label>
+                  <input type="text" placeholder="Place / Area" value={site}
                     onChange={e => { setSite(e.target.value); clearError("site"); }}
                     className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.site ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
                   />
@@ -986,10 +994,17 @@ function Guards({ onGuardAdded }) {
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Login Credentials</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-500 mb-1">Email {editingId && <span className="text-gray-400">(autofilled from profile)</span>}</label>
+                  <label className="block text-sm text-gray-500 mb-1">Email {editingId && <span className="text-gray-405">(read-only during update)</span>}</label>
                   <input type="email" placeholder="guard@example.com" value={email}
                     onChange={e => { setEmail(e.target.value); clearError("email"); }}
-                    className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${errors.email ? "border-red-400 focus:ring-red-300" : "border-gray-200 focus:ring-blue-300"}`}
+                    readOnly={!!editingId}
+                    className={`w-full h-11 border p-3 rounded-xl focus:outline-none focus:ring-2 transition ${
+                      editingId 
+                        ? "bg-gray-100 text-gray-500 cursor-not-allowed border-gray-200 focus:ring-transparent" 
+                        : errors.email 
+                          ? "border-red-400 focus:ring-red-300" 
+                          : "border-gray-200 focus:ring-blue-300"
+                    }`}
                   />
                   {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                 </div>

@@ -90,6 +90,12 @@ function Settings({ onStartTour }) {
     setLoading(true);
     setLoadingMsg("Resetting system database...");
     try {
+      // 1. First, call RPC to remove non-admin user credentials from Supabase Auth
+      const { error: rpcErr } = await supabase.rpc("clear_non_admin_auth_users");
+      if (rpcErr) {
+        console.warn("Auth cleanup RPC failed (make sure SQL function is created in Supabase):", rpcErr);
+      }
+
       // Order of deletion to respect potential foreign key constraints (child tables first)
       const tables = [
         "live_tracking",

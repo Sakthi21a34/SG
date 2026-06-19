@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import Camera from "./Camera";
-import { calcDistance, getLocation, uploadPhoto } from "./lib/geoUtils";
+import { calcDistance, getLocation, uploadPhoto, calculateAttendanceStatus } from "./lib/geoUtils";
 import Notifications from "./Notifications";
 import Incidents from "./Incidents";
 import { addToQueue, getQueue, removeFromQueue, setCached, getCached } from "./lib/offlineDb";
@@ -454,6 +454,7 @@ function GuardDuty({ guardId, guardName }) {
   const [primaryLocation, setPrimaryLocation] = useState(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [activeShift, setActiveShift] = useState(null);
 
   async function syncOfflineData() {
     if (!navigator.onLine) return;
@@ -499,12 +500,27 @@ function GuardDuty({ guardId, guardName }) {
             
             // Upload photo
             const photoUrl = await uploadPhoto(guardId, photoData, supabase);
+
+            // Fetch check-in time
+            const { data: attData } = await supabase.from("attendance").select("check_in_time").eq("id", targetId).single();
+            const checkInTime = attData?.check_in_time;
+            const checkInDate = checkInTime?.split("T")[0] || new Date(timestamp).toISOString().split("T")[0];
+
+            // Fetch active shift
+            const { data: guardShifts } = await supabase.from("shifts").select("*").eq("guard_id", guardId);
+            const tempShift = (guardShifts || []).find(s => s.shift_date === checkInDate);
+            const constantShift = (guardShifts || []).find(s => s.shift_date === null);
+            const activeShiftObj = tempShift || constantShift || null;
+
+            const calculatedStatus = calculateAttendanceStatus(checkInTime, timestamp, activeShiftObj);
+
             // Update attendance
             const { error: err } = await supabase.from("attendance").update({
               check_out_time: timestamp,
               check_out_photo: photoUrl,
               check_out_lat: lat,
               check_out_long: lng,
+              status: calculatedStatus
             }).eq("id", targetId);
             if (err) throw err;
           } else if (item.type === "issue") {
@@ -619,6 +635,7 @@ function GuardDuty({ guardId, guardName }) {
           setDutyLocation(cached.dutyLocation);
           setIsOnTempDuty(cached.isOnTempDuty);
           setPrimaryLocation(cached.primaryLocation);
+          setActiveShift(cached.activeShift || null);
         }
         return;
       }
@@ -662,10 +679,22 @@ function GuardDuty({ guardId, guardName }) {
       setDutyLocation(finalLoc);
       setIsOnTempDuty(finalIsTemp);
 
+      // Query active shift
+      const { data: shiftsData } = await supabase
+        .from("shifts")
+        .select("*")
+        .eq("guard_id", guardId);
+
+      const tempShift = (shiftsData || []).find(s => s.shift_date === today);
+      const constantShift = (shiftsData || []).find(s => s.shift_date === null);
+      const shift = tempShift || constantShift || null;
+      setActiveShift(shift);
+
       setCached(`assigned_location_${guardId}`, {
         dutyLocation: finalLoc,
         isOnTempDuty: finalIsTemp,
-        primaryLocation: primary
+        primaryLocation: primary,
+        activeShift: shift
       });
     } catch {
       const cached = getCached(`assigned_location_${guardId}`);
@@ -673,9 +702,11 @@ function GuardDuty({ guardId, guardName }) {
         setDutyLocation(cached.dutyLocation);
         setIsOnTempDuty(cached.isOnTempDuty);
         setPrimaryLocation(cached.primaryLocation);
+        setActiveShift(cached.activeShift || null);
       }
     }
   }
+
   async function fetchAttendanceHistory() {
     try {
       if (!navigator.onLine) {
@@ -888,9 +919,11 @@ function GuardDuty({ guardId, guardName }) {
     if (!dataUrl) { setError("Camera not available. Grant camera permission and try again."); setLoading(false); return; }
     setLoading(true);
     try {
+      const now = new Date().toISOString();
+      const calculatedStatus = calculateAttendanceStatus(todayRecord?.check_in_time, now, activeShift);
+
       if (!navigator.onLine) {
         const pos = await getLocation();
-        const now = new Date().toISOString();
 
         await addToQueue("checkout", {
           attendanceId: currentAttendanceId,
@@ -910,7 +943,8 @@ function GuardDuty({ guardId, guardName }) {
           check_out_time: now,
           check_out_photo: dataUrl,
           check_out_lat: pos.lat,
-          check_out_long: pos.lng
+          check_out_long: pos.lng,
+          status: calculatedStatus
         };
         setTodayRecord(localRecord);
 
@@ -927,7 +961,7 @@ function GuardDuty({ guardId, guardName }) {
           id: "temp_hist_" + Date.now(),
           check_in_time: todayRecord?.check_in_time || now,
           check_out_time: now,
-          status: "Present",
+          status: calculatedStatus,
           duty_locations: { place_name: dutyLocation?.place_name || "Assigned Location" }
         };
         const updatedHistory = [newHistoryItem, ...history.filter(h => h.id !== currentAttendanceId)];
@@ -943,9 +977,12 @@ function GuardDuty({ guardId, guardName }) {
       setStatus("📸 Uploading checkout photo...", "info");
       const photoUrl = await uploadPhoto(guardId, dataUrl, supabase);
       const pos = await getLocation();
-      const now = new Date().toISOString();
       const { error: err } = await supabase.from("attendance").update({
-        check_out_time: now, check_out_photo: photoUrl, check_out_lat: pos.lat, check_out_long: pos.lng,
+        check_out_time: now,
+        check_out_photo: photoUrl,
+        check_out_lat: pos.lat,
+        check_out_long: pos.lng,
+        status: calculatedStatus
       }).eq("id", currentAttendanceId);
       if (err) { setError("Error checking out."); setLoading(false); return; }
       stopLiveTracking();
@@ -1224,6 +1261,8 @@ function GuardDuty({ guardId, guardName }) {
                   }
                 } else if (item.status === "Absent") {
                   statusClass = "bg-red-100 text-red-700";
+                } else if (item.status === "Half Day") {
+                  statusClass = "bg-amber-100 text-amber-700";
                 } else {
                   statusClass = "bg-yellow-100 text-yellow-700";
                 }
