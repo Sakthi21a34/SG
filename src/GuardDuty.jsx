@@ -214,18 +214,9 @@ function MyRequests({ guardId }) {
       {reqs.map(r => (
         <div key={r.id} className="bg-white rounded-2xl p-4 border border-gray-100 flex justify-between items-start shadow-sm">
           <div className="flex-1 min-w-0 mr-3">
-            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold inline-block mb-1 ${
-              r.request_type === "leave" ? "bg-amber-100 text-amber-700" :
-              r.request_type === "voice" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
-            }`}>
-              {r.request_type === "leave" ? "🌴 Leave" :
-               r.request_type === "voice" ? "🎤 Voice" : "📝 Text"}
+            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold inline-block mb-1 ${r.request_type === "voice" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+              {r.request_type === "voice" ? "🎤 Voice" : "📝 Text"}
             </span>
-            {r.request_type === "leave" && r.start_date && r.end_date && (
-              <p className="text-xs font-semibold text-amber-800 mt-0.5 mb-1">
-                📅 {r.start_date} to {r.end_date}
-              </p>
-            )}
             <p className="text-sm text-gray-700 truncate">{r.message || "Voice note"}</p>
             {r.audio_url && <AudioPlayer src={r.audio_url} />}
           </div>
@@ -397,15 +388,6 @@ function GuardDuty({ guardId, guardName }) {
   const [showLeaveHistory, setShowLeaveHistory] = useState(false);
   const [leaveHistory, setLeaveHistory] = useState([]);
   const { showToast, ToastContainer } = useToast();
-
-  const handleNavigate = (tab) => {
-    if (tab === "history_requests") {
-      setActiveTab("history");
-      setShowRequestHistory(true);
-    } else {
-      setActiveTab(tab);
-    }
-  };
 
   function handleSosPanic() {
     setShowSosConfirm(true);
@@ -887,6 +869,20 @@ function GuardDuty({ guardId, guardName }) {
     }
   }
 
+  const handleNavigate = (tab) => {
+    if (tab === "leave-history") {
+      setActiveTab("history");
+      setLeaveStart(new Date().toISOString().split("T")[0]);
+      setLeaveEnd(new Date().toISOString().split("T")[0]);
+      setLeaveReason("");
+      setShowLeaveHistory(true);
+      fetchLeaveHistory();
+      setShowLeaveModal(true);
+    } else {
+      setActiveTab(tab);
+    }
+  };
+
   useEffect(() => { fetchAssignedLocation(); fetchTodayStatus(); fetchAttendanceHistory(); fetchLeaveStatus(); }, [guardId]);
   useEffect(() => { if (!isOnDuty) return; const id = setInterval(fetchTodayStatus, 15000); return () => clearInterval(id); }, [isOnDuty]);
 
@@ -1366,20 +1362,10 @@ function GuardDuty({ guardId, guardName }) {
 
   const historyPanel = (
     <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-50 flex justify-between items-center flex-wrap gap-3">
-        <div className="flex gap-4">
-          <button
-            onClick={() => setShowRequestHistory(false)}
-            className={`font-bold text-lg transition pb-1 border-b-2 ${!showRequestHistory ? "text-gray-805 border-blue-600" : "text-gray-400 border-transparent"}`}
-          >
-            {t("attendance_history")}
-          </button>
-          <button
-            onClick={() => setShowRequestHistory(true)}
-            className={`font-bold text-lg transition pb-1 border-b-2 ${showRequestHistory ? "text-gray-805 border-blue-600" : "text-gray-400 border-transparent"}`}
-          >
-            📋 Requests
-          </button>
+      <div className="px-6 py-4 border-b border-gray-50 flex justify-between items-center">
+        <div>
+          <h2 className="font-bold text-gray-800 text-lg">{t("attendance_history")}</h2>
+          <p className="text-xs text-gray-400 mt-0.5">{attendanceHistory.length} {t("records_found")}</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -1406,62 +1392,55 @@ function GuardDuty({ guardId, guardName }) {
           </button>
         </div>
       </div>
-
-      <div className="p-6">
-        {showRequestHistory ? (
-          <MyRequests guardId={guardId} />
-        ) : (
-          <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
-            {attendanceHistory.length === 0 ? (
-              <div className="flex flex-col items-center py-16 text-gray-300">
-                <span className="text-5xl mb-3">📋</span>
-                <p className="font-medium text-gray-400">{t("no_attendance")}</p>
-              </div>
-            ) : attendanceHistory.map(item => {
-              const loc = item.duty_locations?.place_name;
-              return (
-                <div key={item.id} className="px-6 py-4 flex justify-between items-center hover:bg-gray-50/50 transition">
-                  <div>
-                    <p className="font-semibold text-gray-800">{fmtDate(item.check_in_time)}</p>
-                    {loc && <p className="text-xs text-blue-600 mt-0.5">📍 {loc}</p>}
-                    <p className="text-xs text-gray-400 mt-0.5">In: {fmt(item.check_in_time)} &nbsp;·&nbsp; Out: {fmt(item.check_out_time)}</p>
-                  </div>
-                  {(() => {
-                    let displayStatus = item.status;
-                    let statusClass = "bg-gray-100 text-gray-700";
-                    if (item.status === "Present") {
-                      if (item.check_in_time && !item.check_out_time) {
-                        const checkInDate = new Date(item.check_in_time).toDateString();
-                        const todayDate = new Date().toDateString();
-                        if (checkInDate === todayDate) {
-                          displayStatus = "On Duty";
-                          statusClass = "bg-blue-100 text-blue-700";
-                        } else {
-                          displayStatus = "Missed Checkout";
-                          statusClass = "bg-amber-100 text-amber-700";
-                        }
-                      } else {
-                        displayStatus = "Present";
-                        statusClass = "bg-green-100 text-green-700";
-                      }
-                    } else if (item.status === "Absent") {
-                      statusClass = "bg-red-100 text-red-700";
-                    } else if (item.status === "Half Day") {
-                      statusClass = "bg-amber-100 text-amber-700";
-                    } else {
-                      statusClass = "bg-yellow-100 text-yellow-700";
-                    }
-                    return (
-                      <span className={`text-xs px-3 py-1 rounded-full font-bold shrink-0 ml-3 uppercase tracking-wider ${statusClass}`}>
-                        {displayStatus}
-                      </span>
-                    );
-                  })()}
-                </div>
-              );
-            })}
+      <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
+        {attendanceHistory.length === 0 ? (
+          <div className="flex flex-col items-center py-16 text-gray-300">
+            <span className="text-5xl mb-3">📋</span>
+            <p className="font-medium text-gray-400">{t("no_attendance")}</p>
           </div>
-        )}
+        ) : attendanceHistory.map(item => {
+          const loc = item.duty_locations?.place_name;
+          return (
+            <div key={item.id} className="px-6 py-4 flex justify-between items-center hover:bg-gray-50/50 transition">
+              <div>
+                <p className="font-semibold text-gray-800">{fmtDate(item.check_in_time)}</p>
+                {loc && <p className="text-xs text-blue-600 mt-0.5">📍 {loc}</p>}
+                <p className="text-xs text-gray-400 mt-0.5">In: {fmt(item.check_in_time)} &nbsp;·&nbsp; Out: {fmt(item.check_out_time)}</p>
+              </div>
+              {(() => {
+                let displayStatus = item.status;
+                let statusClass = "bg-gray-100 text-gray-700";
+                if (item.status === "Present") {
+                  if (item.check_in_time && !item.check_out_time) {
+                    const checkInDate = new Date(item.check_in_time).toDateString();
+                    const todayDate = new Date().toDateString();
+                    if (checkInDate === todayDate) {
+                      displayStatus = "On Duty";
+                      statusClass = "bg-blue-100 text-blue-700";
+                    } else {
+                      displayStatus = "Missed Checkout";
+                      statusClass = "bg-amber-100 text-amber-700";
+                    }
+                  } else {
+                    displayStatus = "Present";
+                    statusClass = "bg-green-100 text-green-700";
+                  }
+                } else if (item.status === "Absent") {
+                  statusClass = "bg-red-100 text-red-700";
+                } else if (item.status === "Half Day") {
+                  statusClass = "bg-amber-100 text-amber-700";
+                } else {
+                  statusClass = "bg-yellow-100 text-yellow-700";
+                }
+                return (
+                  <span className={`text-xs px-3 py-1 rounded-full font-bold shrink-0 ml-3 uppercase tracking-wider ${statusClass}`}>
+                    {displayStatus}
+                  </span>
+                );
+              })()}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
