@@ -121,15 +121,15 @@ export function calculateAttendanceStatus(checkInTimeStr, checkOutTimeStr, shift
     schedEnd.setDate(schedEnd.getDate() + 1);
   }
 
-  // 2. check in must be on time or before time (allow 1-minute buffer)
+  // 2. check in must be on time or within 30-minute grace period
   const checkInLateMs = checkIn.getTime() - schedStart.getTime();
-
+ 
   // 3. 10 minutes before check out when duty end that's not problem
   const checkOutEarlyMs = schedEnd.getTime() - checkOut.getTime();
-
-  const isCheckInOnTime = checkInLateMs <= 60000;
+ 
+  const isCheckInOnTime = checkInLateMs <= 30 * 60 * 1000; // 30-minute grace period
   const isCheckOutOnTime = checkOutEarlyMs <= 10 * 60 * 1000;
-
+ 
   if (isCheckInOnTime && isCheckOutOnTime) {
     return "Present";
   }

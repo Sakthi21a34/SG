@@ -177,14 +177,13 @@ function Attendance({ role, userGuardId, hideHistory }) {
   }
 
   function getGuardCurrentAttendance(records, gId) {
-    const today = new Date().toISOString().split("T")[0];
-    return records.find((r) => String(r.guard_id) === String(gId) && r.check_in_time?.startsWith(today) && !r.check_out_time);
+    return records.find((r) => String(r.guard_id) === String(gId) && !r.check_out_time);
   }
 
   function hasGuardCheckedOutToday(records, gId) {
     if (!gId) return false;
     const today = new Date().toISOString().split("T")[0];
-    return records.some((r) => String(r.guard_id) === String(gId) && r.check_in_time?.startsWith(today) && r.check_out_time);
+    return records.some((r) => String(r.guard_id) === String(gId) && (r.check_in_time?.startsWith(today) || r.check_out_time?.startsWith(today)) && r.check_out_time);
   }
 
   useEffect(() => {

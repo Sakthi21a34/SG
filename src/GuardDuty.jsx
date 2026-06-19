@@ -735,8 +735,28 @@ function GuardDuty({ guardId, guardName }) {
         }
         return;
       }
-      const today = new Date().toISOString().split("T")[0];
-      const { data } = await supabase.from("attendance").select("*, duty_locations(place_name)").eq("guard_id", guardId).gte("check_in_time", today).lte("check_in_time", today + "T23:59:59").order("check_in_time", { ascending: false }).limit(1);
+      // 1. First, search for any active check-in (where check_out_time is null)
+      let { data } = await supabase
+        .from("attendance")
+        .select("*, duty_locations(place_name)")
+        .eq("guard_id", guardId)
+        .is("check_out_time", null)
+        .order("check_in_time", { ascending: false })
+        .limit(1);
+
+      // 2. If no active check-in, search for the latest check-in that was started today
+      if (!data || data.length === 0) {
+        const today = new Date().toISOString().split("T")[0];
+        const { data: todayRecords } = await supabase
+          .from("attendance")
+          .select("*, duty_locations(place_name)")
+          .eq("guard_id", guardId)
+          .gte("check_in_time", today)
+          .lte("check_in_time", today + "T23:59:59")
+          .order("check_in_time", { ascending: false })
+          .limit(1);
+        data = todayRecords;
+      }
       
       let rec = null;
       let active = false;
