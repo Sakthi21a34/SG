@@ -178,7 +178,13 @@ function Attendance({ role, userGuardId, hideHistory }) {
 
   function getGuardCurrentAttendance(records, gId) {
     const today = new Date().toISOString().split("T")[0];
-    return records.find((r) => r.guard_id === gId && r.check_in_time?.startsWith(today) && !r.check_out_time);
+    return records.find((r) => String(r.guard_id) === String(gId) && r.check_in_time?.startsWith(today) && !r.check_out_time);
+  }
+
+  function hasGuardCheckedOutToday(records, gId) {
+    if (!gId) return false;
+    const today = new Date().toISOString().split("T")[0];
+    return records.some((r) => String(r.guard_id) === String(gId) && r.check_in_time?.startsWith(today) && r.check_out_time);
   }
 
   useEffect(() => {
@@ -242,8 +248,9 @@ function Attendance({ role, userGuardId, hideHistory }) {
       const dutyLoc = locations.find((l) => l.id === dutyLocationId);
       if (!dutyLoc) { showToast("Duty location not found.", "error"); setLoading(false); setGpsStatus(null); return; }
       const dist = calcDistance(loc.lat, loc.lng, dutyLoc.latitude, dutyLoc.longitude);
-      if (dist > dutyLoc.radius_meters) {
-        setGpsStatus(`You are ${Math.round(dist)}m away (max ${dutyLoc.radius_meters}m allowed). Move inside the duty area.`);
+      const isWithinRange = dist <= dutyLoc.radius_meters || (loc.accuracy && dist <= loc.accuracy);
+      if (!isWithinRange) {
+        setGpsStatus(`You are ${Math.round(dist)}m away (accuracy +/-${Math.round(loc.accuracy || 0)}m, max ${dutyLoc.radius_meters}m allowed). Move inside the duty area.`);
         setLoading(false);
         return;
       }
@@ -388,8 +395,9 @@ function Attendance({ role, userGuardId, hideHistory }) {
         const { data: dutyLoc } = await supabase.from("duty_locations").select("*").eq("id", att.duty_location_id).single();
         if (dutyLoc) {
           const dist = calcDistance(pos.lat, pos.lng, dutyLoc.latitude, dutyLoc.longitude);
-          if (dist > dutyLoc.radius_meters) {
-            setGpsStatus(`You are ${Math.round(dist)}m outside. Move inside to check out.`);
+          const isWithinRange = dist <= dutyLoc.radius_meters || (pos.accuracy && dist <= pos.accuracy);
+          if (!isWithinRange) {
+            setGpsStatus(`You are ${Math.round(dist)}m outside (accuracy +/-${Math.round(pos.accuracy || 0)}m). Move inside to check out.`);
             setLoading(false);
             return;
           }
@@ -503,6 +511,11 @@ function Attendance({ role, userGuardId, hideHistory }) {
                 <button onClick={handleCheckOut} disabled={loading}
                   className={`w-full h-12 rounded-lg text-white font-semibold transition ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-orange-600 hover:bg-orange-700"}`}>
                   {loading ? "Processing..." : "📸 End Duty"}
+                </button>
+              ) : hasGuardCheckedOutToday(records, guardId) ? (
+                <button disabled
+                  className="w-full h-12 rounded-lg text-white font-semibold bg-gray-400 cursor-not-allowed transition">
+                  ✅ Duty Completed
                 </button>
               ) : (
                 <button onClick={handleCheckIn} disabled={loading || isAbsent}

@@ -824,8 +824,9 @@ function GuardDuty({ guardId, guardName }) {
       setStatus("📍 Getting your location...", "info");
       const loc = await getLocation();
       const dist = Math.round(calcDistance(loc.lat, loc.lng, dutyLocation.latitude, dutyLocation.longitude));
-      if (dist > dutyLocation.radius_meters) {
-        setStatus(`⚠️ You are ${dist}m away. Move within ${dutyLocation.radius_meters}m of ${dutyLocation.place_name}.`, "warn");
+      const isWithinRange = dist <= dutyLocation.radius_meters || (loc.accuracy && dist <= loc.accuracy);
+      if (!isWithinRange) {
+        setStatus(`⚠️ You are ${dist}m away (accuracy +/-${Math.round(loc.accuracy || 0)}m). Move within ${dutyLocation.radius_meters}m of ${dutyLocation.place_name}.`, "warn");
         setLoading(false); return;
       }
       setStatus("✅ Location verified! Capture selfie to check in.", "success");
@@ -906,7 +907,8 @@ function GuardDuty({ guardId, guardName }) {
       const pos = await getLocation();
       if (dutyLocation) {
         const dist = Math.round(calcDistance(pos.lat, pos.lng, dutyLocation.latitude, dutyLocation.longitude));
-        if (dist > dutyLocation.radius_meters) { setStatus(`⚠️ You are ${dist}m away. Move within ${dutyLocation.radius_meters}m of ${dutyLocation.place_name}.`, "warn"); setLoading(false); return; }
+        const isWithinRange = dist <= dutyLocation.radius_meters || (pos.accuracy && dist <= pos.accuracy);
+        if (!isWithinRange) { setStatus(`⚠️ You are ${dist}m away (accuracy +/-${Math.round(pos.accuracy || 0)}m). Move within ${dutyLocation.radius_meters}m of ${dutyLocation.place_name}.`, "warn"); setLoading(false); return; }
       }
       setStatus("✅ Location ok! Capture selfie to check out.", "success");
       setLoading(false);
@@ -1152,9 +1154,10 @@ function GuardDuty({ guardId, guardName }) {
 
           <button
             onClick={isOnDuty ? handleCheckOut : handleCheckIn}
-            disabled={loading || (!dutyLocation && !isOnDuty)}
+            disabled={loading || (!dutyLocation && !isOnDuty) || (todayRecord && todayRecord.check_out_time)}
             className={`w-full h-14 rounded-2xl text-white font-bold text-base transition-all shadow-md active:scale-[0.98] ${loading ? "bg-gray-300 cursor-not-allowed" :
               isOnDuty ? "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 shadow-orange-200" :
+                (todayRecord && todayRecord.check_out_time) ? "bg-gray-400 cursor-not-allowed" :
                 "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-emerald-200"
               }`}
           >
@@ -1163,7 +1166,7 @@ function GuardDuty({ guardId, guardName }) {
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 {t("submitting")}
               </span>
-            ) : isOnDuty ? "📸  " + t("end_duty") : "📍  " + t("start_duty")}
+            ) : isOnDuty ? "📸  " + t("end_duty") : (todayRecord && todayRecord.check_out_time) ? "✅  " + t("duty_complete") : "📍  " + t("start_duty")}
           </button>
         </div>
       </div>

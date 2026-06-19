@@ -81,10 +81,6 @@ export async function uploadPhoto(guardId, dataUrl, supabase) {
 }
 
 export function calculateAttendanceStatus(checkInTimeStr, checkOutTimeStr, shift) {
-  if (!shift || !shift.start_time || !shift.end_time) {
-    return "Present"; // Default to Present if no shift details are available
-  }
-
   if (!checkInTimeStr) {
     return "Absent";
   }
@@ -92,6 +88,22 @@ export function calculateAttendanceStatus(checkInTimeStr, checkOutTimeStr, shift
   // Parse check-in and check-out times
   const checkIn = new Date(checkInTimeStr);
   const checkOut = checkOutTimeStr ? new Date(checkOutTimeStr) : null;
+
+  // If there's no check-out yet, it's still dynamically shown as On Duty
+  if (!checkOut) {
+    return "Present";
+  }
+
+  const actualDurationMs = checkOut.getTime() - checkIn.getTime();
+  
+  // 1. check in and check out within 30 minutes (actual work duration < 30 minutes) -> Absent
+  if (actualDurationMs < 30 * 60 * 1000) {
+    return "Absent";
+  }
+
+  if (!shift || !shift.start_time || !shift.end_time) {
+    return "Present"; // Default to Present if no shift details are available
+  }
 
   // We need to compare checkIn and checkOut with the scheduled shift timings on the day of check-in
   const checkInDateStr = checkInTimeStr.split("T")[0];
@@ -107,18 +119,6 @@ export function calculateAttendanceStatus(checkInTimeStr, checkOutTimeStr, shift
   // If shift ends on the next day (midnight crossing, e.g. start at 22:00, end at 06:00)
   if (schedEnd < schedStart) {
     schedEnd.setDate(schedEnd.getDate() + 1);
-  }
-
-  // If there's no check-out yet, it's still dynamically shown as On Duty
-  if (!checkOut) {
-    return "Present";
-  }
-
-  const actualDurationMs = checkOut.getTime() - checkIn.getTime();
-  
-  // 1. check in and check out within 30 minutes (actual work duration < 30 minutes) -> Absent
-  if (actualDurationMs < 30 * 60 * 1000) {
-    return "Absent";
   }
 
   // 2. check in must be on time or before time (allow 1-minute buffer)
