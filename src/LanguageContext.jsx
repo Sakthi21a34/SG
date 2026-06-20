@@ -12,13 +12,13 @@ const translations = {
     "system-users": "System Access",
     incidents: "Incidents",
     circulars: "Circulars",
-    "correction-requests": "Corrections",
+    "correction-requests": "Requests",
     logout: "Logout",
     settings: "Settings",
     logged_in_as: "Logged in as",
     
     // Guard Tabs
-    duty: "Duty Control",
+    duty: "Shift Control",
     history: "Attendance",
     requests: "Issues",
     duty_desc: "Check In / Out",
@@ -29,10 +29,10 @@ const translations = {
     
     // Status
     status: "Status",
-    on_active_duty: "On Active Duty",
-    off_duty: "Off Duty",
-    duty_complete: "Duty Complete",
-    time_on_duty: "Time on duty",
+    on_active_duty: "On Shift",
+    off_duty: "Off Shift",
+    duty_complete: "Shift Complete",
+    time_on_duty: "Time on shift",
     allowed_radius: "Allowed radius",
     inside_zone: "Inside zone",
     outside_zone: "Outside zone",
@@ -43,8 +43,8 @@ const translations = {
     name: "Name",
     today_location: "Today's Location",
     today: "Today",
-    start_duty: "Start Duty",
-    end_duty: "End Duty",
+    start_duty: "Start Shift",
+    end_duty: "End Shift",
     
     // Notifications & Alert
     sos_panic_alert: "Emergency SOS Alert",
@@ -52,7 +52,7 @@ const translations = {
     received: "Received",
     
     // Panels & Headers
-    duty_control: "Duty Control",
+    duty_control: "Shift Control",
     attendance_history: "Attendance History",
     report_issue: "Report an Issue",
     past_requests: "Past Requests",

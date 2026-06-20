@@ -1,19 +1,23 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { supabase } from "./lib/supabase";
 import Sidebar from "./Sidebar";
-import StaffRegistry from "./StaffRegistry";
-import GuardProfiles from "./GuardProfiles";
-import LiveOps from "./LiveOps";
-import Incidents from "./Incidents";
-import Circulars from "./Circulars";
-import CorrectionRequests from "./CorrectionRequests";
-import SystemAccess from "./SystemAccess";
-import Analytics from "./Analytics";
-import Charts from "./Charts";
 import { useToast } from "./Toast";
 import Notifications from "./Notifications";
 import { useLanguage } from "./LanguageContext";
-import Settings from "./Settings";
+import ErrorBoundary from "./ErrorBoundary";
+
+// Lazy-loaded subcomponents for improved performance and initial page load speed
+const StaffRegistry = React.lazy(() => import("./StaffRegistry"));
+const GuardProfiles = React.lazy(() => import("./GuardProfiles"));
+const LiveOps = React.lazy(() => import("./LiveOps"));
+const Incidents = React.lazy(() => import("./Incidents"));
+const Circulars = React.lazy(() => import("./Circulars"));
+const CorrectionRequests = React.lazy(() => import("./CorrectionRequests"));
+const SystemAccess = React.lazy(() => import("./SystemAccess"));
+const Analytics = React.lazy(() => import("./Analytics"));
+const Charts = React.lazy(() => import("./Charts"));
+const Settings = React.lazy(() => import("./Settings"));
+
 
 /* ─── Language Dropdown ───────────────────────────── */
 function LanguageDropdown({ locale, setLocale }) {
@@ -177,7 +181,7 @@ function Dashboard({ role, userGuardId }) {
       page: "staff-registry",
       tourTab: "locations",
       selector: ".tour-staff-target",
-      text: "Under the Duty Locations tab, you can set site boundaries, coordinates, and geofence radius limits."
+      text: "Under the Shift Locations tab, you can set site boundaries, coordinates, and geofence radius limits."
     },
     {
       title: "Incident Reports",
@@ -349,35 +353,40 @@ function Dashboard({ role, userGuardId }) {
   return (
     <>
       <ToastContainer />
-      <div className="flex h-screen overflow-hidden bg-slate-50/50">
+      <div className="flex h-screen overflow-hidden bg-slate-50/30 relative">
+        {/* Ambient decorative glowing blobs */}
+        <div className="glowing-orb-1" />
+        <div className="glowing-orb-2" />
+
         <Sidebar role={role} page={page} onNavigate={setPage} onLogout={handleLogout} isOpen={sidebarOpen} onOpen={() => setSidebarOpen(true)} onClose={() => setSidebarOpen(false)} />
 
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto h-full">
-          <div className="glass-card rounded-2xl p-4 md:p-6 mb-8 relative z-50">
+        <div className="flex-1 p-4 md:p-8 overflow-y-auto h-full relative z-10">
+          {/* Top Bar Header with Premium Glassmorphism */}
+          <div className="glass-card rounded-2xl p-4 md:p-5 mb-8 relative z-50 border border-white/50 shadow-[0_8px_30px_rgb(0,0,0,0.02)] backdrop-blur-md">
             <div className="flex justify-between items-center gap-3">
               <div className="flex items-center gap-3">
                 {/* Mobile hamburger - inside the card, aligned with title */}
                 <button
                   onClick={() => setSidebarOpen(true)}
-                  className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition shrink-0"
+                  className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100/80 text-slate-650 hover:bg-blue-50 hover:text-blue-600 transition-all duration-200 shrink-0 hover:scale-105 active:scale-95"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                   </svg>
                 </button>
                 <div>
-                  <h1 className="text-xl md:text-3xl font-bold text-gray-800 capitalize leading-tight">{t(page)}</h1>
-                  <p className="text-xs md:text-base text-gray-500 mt-0.5">
-                    {t("logged_in_as")}: <span className="font-medium capitalize text-blue-600">{role || "user"}</span>
+                  <h1 className="text-xl md:text-2xl.5 font-extrabold text-slate-800 tracking-tight capitalize leading-tight">{t(page)}</h1>
+                  <p className="text-[11px] md:text-sm text-slate-450 mt-0.5 font-medium">
+                    {t("logged_in_as")}: <span className="font-semibold capitalize text-indigo-650">{role || "user"}</span>
                   </p>
                 </div>
               </div>
-              <div className="flex items-center shrink-0 gap-2 md:gap-3">
+              <div className="flex items-center shrink-0 gap-2.5 md:gap-3">
                 <LanguageDropdown locale={locale} setLocale={setLocale} />
                 <Notifications role={role} onNavigate={setPage} />
                 <button
                   onClick={handleLogout}
-                  className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-red-50 text-red-650 hover:bg-red-100 transition shadow-sm"
+                  className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center rounded-xl bg-red-50/80 text-red-600 hover:bg-red-500 hover:text-white transition-all duration-300 shadow-sm hover:scale-105 active:scale-95 hover:shadow-md hover:shadow-red-200"
                   title={t("logout")}
                 >
                   <span className="text-base md:text-lg">🚪</span>
@@ -386,28 +395,37 @@ function Dashboard({ role, userGuardId }) {
             </div>
           </div>
 
-          {page === "dashboard" && (
-            <div className="tour-analytics-target w-full animate-fade-in">
-              <Analytics role={role} />
-              {role !== "admin" && <Charts />}
-            </div>
-          )}
-          {page === "live-ops" && (
-            <div className="tour-liveops-target w-full">
-              <LiveOps role={role} tourView={tourStep !== null && tourSteps[tourStep]?.page === "live-ops" ? tourSteps[tourStep]?.tourView : null} />
-            </div>
-          )}
-          {page === "staff-registry" && role === "admin" && (
-            <div className="tour-staff-target w-full">
-              <StaffRegistry tourTab={tourStep !== null && tourSteps[tourStep]?.page === "staff-registry" ? tourSteps[tourStep]?.tourTab : null} />
-            </div>
-          )}
-          {page === "guard-profiles" && (role === "admin" || role === "supervisor") && <GuardProfiles />}
-          {page === "system-users" && role === "admin" && <SystemAccess />}
-          {page === "incidents" && <div className="tour-incidents-target w-full"><Incidents role={role} /></div>}
-          {page === "circulars" && <div className="tour-circulars-target w-full"><Circulars role={role} userGuardId={userGuardId} /></div>}
-          {page === "correction-requests" && <CorrectionRequests role={role} />}
-          {page === "settings" && role === "admin" && <div className="tour-settings-target w-full"><Settings onStartTour={() => setTourStep(0)} /></div>}
+          <ErrorBoundary>
+            <Suspense fallback={
+              <div className="flex flex-col items-center justify-center py-20 text-slate-500 font-semibold gap-3 animate-fade-in">
+                <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                <span>Loading panel...</span>
+              </div>
+            }>
+              {page === "dashboard" && (
+                <div className="tour-analytics-target w-full animate-fade-in">
+                  <Analytics role={role} onNavigate={setPage} />
+                  {role !== "admin" && <Charts />}
+                </div>
+              )}
+              {page === "live-ops" && (
+                <div className="tour-liveops-target w-full">
+                  <LiveOps role={role} tourView={tourStep !== null && tourSteps[tourStep]?.page === "live-ops" ? tourSteps[tourStep]?.tourView : null} />
+                </div>
+              )}
+              {page === "staff-registry" && role === "admin" && (
+                <div className="tour-staff-target w-full">
+                  <StaffRegistry tourTab={tourStep !== null && tourSteps[tourStep]?.page === "staff-registry" ? tourSteps[tourStep]?.tourTab : null} />
+                </div>
+              )}
+              {page === "guard-profiles" && (role === "admin" || role === "supervisor") && <GuardProfiles />}
+              {page === "system-users" && role === "admin" && <SystemAccess />}
+              {page === "incidents" && <div className="tour-incidents-target w-full"><Incidents role={role} /></div>}
+              {page === "circulars" && <div className="tour-circulars-target w-full"><Circulars role={role} userGuardId={userGuardId} /></div>}
+              {page === "correction-requests" && <CorrectionRequests role={role} />}
+              {page === "settings" && role === "admin" && <div className="tour-settings-target w-full"><Settings onStartTour={() => setTourStep(0)} /></div>}
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </div>
 

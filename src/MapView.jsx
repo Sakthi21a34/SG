@@ -289,7 +289,7 @@ function MapView() {
                 <div className="flex flex-wrap gap-4 mt-4 text-xs font-semibold text-gray-500">
                   <span className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 rounded bg-blue-100 border border-blue-500 inline-block" /> Core Safety Zones</span>
                   <span className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 border-2 border-dashed border-indigo-500 inline-block" /> Octagonal Geofence Perimeter</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-500 inline-block animate-pulse" /> Guards On Duty ({guardsOnDuty.length})</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-500 inline-block animate-pulse" /> Guards On Shift ({guardsOnDuty.length})</span>
                   {heatmapMode && (
                     <span className="flex items-center gap-1.5"><span className="w-3.5 h-3.5 rounded bg-orange-100 border border-orange-500 inline-block" /> Patrol Density Heatmap</span>
                   )}
@@ -311,7 +311,7 @@ function MapView() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
           <div className="glass-card rounded-2xl p-5 ring-1 ring-emerald-200">
-            <h3 className="text-sm font-semibold text-gray-600 mb-3">📍 Duty Locations</h3>
+            <h3 className="text-sm font-semibold text-gray-600 mb-3">📍 Shift Locations</h3>
             {dutyLocations.length === 0 ? (
               <p className="text-gray-400 text-sm">No locations configured.</p>
             ) : (
@@ -333,7 +333,7 @@ function MapView() {
           <div className="glass-card rounded-2xl p-5 ring-1 ring-blue-200">
             <h3 className="text-sm font-semibold text-gray-600 mb-3">🛡️ Active Guards</h3>
             {guardsOnDuty.length === 0 ? (
-              <p className="text-gray-400 text-sm">No guards currently on duty.</p>
+              <p className="text-gray-400 text-sm">No guards currently on shift.</p>
             ) : (
               <ul className="space-y-2">
                 {guardsOnDuty.map((guard) => (

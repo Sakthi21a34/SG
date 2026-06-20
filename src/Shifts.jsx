@@ -226,7 +226,7 @@ function Shifts() {
         </div>
 
         {/* FORM */}
-        <div className="glass-card rounded-2xl p-6 mb-8 ring-1 ring-purple-200">
+        <div className="glass-card rounded-2xl p-6 mb-8 ring-1 ring-purple-200 relative z-50">
           <h2 className="text-xl font-semibold mb-4 text-gray-700">🗓️ Assign New Shift</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

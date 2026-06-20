@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
 import Camera from "./Camera";
@@ -11,6 +11,7 @@ function Attendance({ role, userGuardId, hideHistory }) {
   const [guards, setGuards] = useState([]);
   const [records, setRecords] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [shifts, setShifts] = useState([]);
   const [guardId, setGuardId] = useState("");
   const [dutyLocationId, setDutyLocationId] = useState("");
   const [status, setStatus] = useState("Present");
@@ -46,26 +47,33 @@ function Attendance({ role, userGuardId, hideHistory }) {
 
   const isAbsent = status === "Absent";
 
-  const filteredRecords = records.filter(item => {
-    const matchesGuard = filterGuard ? String(item.guard_id) === String(filterGuard) : true;
-    const matchesLocation = filterLocation ? String(item.duty_location_id) === String(filterLocation) : true;
-    const matchesStatus = filterStatus ? item.status === filterStatus : true;
-    const recordDate = item.check_in_time?.split("T")[0] || item.date || "";
-    const matchesStartDate = filterStartDate ? recordDate >= filterStartDate : true;
-    const matchesEndDate = filterEndDate ? recordDate <= filterEndDate : true;
-    return matchesGuard && matchesLocation && matchesStatus && matchesStartDate && matchesEndDate;
-  });
+  const filteredRecords = useMemo(() => {
+    return records.filter(item => {
+      const matchesGuard = filterGuard ? String(item.guard_id) === String(filterGuard) : true;
+      const matchesLocation = filterLocation ? String(item.duty_location_id) === String(filterLocation) : true;
+      const matchesStatus = filterStatus ? item.status === filterStatus : true;
+      const recordDate = item.check_in_time?.split("T")[0] || item.date || "";
+      const matchesStartDate = filterStartDate ? recordDate >= filterStartDate : true;
+      const matchesEndDate = filterEndDate ? recordDate <= filterEndDate : true;
+      return matchesGuard && matchesLocation && matchesStatus && matchesStartDate && matchesEndDate;
+    });
+  }, [records, filterGuard, filterLocation, filterStatus, filterStartDate, filterEndDate]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filterGuard, filterLocation, filterStatus, filterStartDate, filterEndDate]);
 
-  const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
-  const paginatedRecords = filteredRecords.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredRecords.length / itemsPerPage);
+  }, [filteredRecords.length]);
+
+  const paginatedRecords = useMemo(() => {
+    return filteredRecords.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    );
+  }, [filteredRecords, currentPage]);
 
   function downloadReportCSV() {
     if (filteredRecords.length === 0) {
@@ -166,8 +174,42 @@ function Attendance({ role, userGuardId, hideHistory }) {
     try {
       const { data } = await supabase.from("attendance").select(`*, guards(name), duty_locations(place_name)`).order("id", { ascending: false });
       setRecords(data || []);
+      const { data: shiftsData } = await supabase.from("shifts").select("*");
+      setShifts(shiftsData || []);
     } catch { showToast("Could not load attendance records.", "error"); }
   }
+
+  const getLateMinutes = (item) => {
+    if (!item.check_in_time) return 0;
+    const checkInTime = new Date(item.check_in_time);
+    const checkInDate = item.check_in_time.split("T")[0];
+    const guardShifts = shifts.filter(s => String(s.guard_id) === String(item.guard_id));
+    const tempShift = guardShifts.find(s => s.shift_date === checkInDate);
+    const constantShift = guardShifts.find(s => s.shift_date === null);
+    const activeShift = tempShift || constantShift;
+    
+    if (activeShift && activeShift.start_time) {
+      const formatTime = (t) => t.length === 5 ? `${t}:00` : t;
+      const schedStartStr = `${checkInDate}T${formatTime(activeShift.start_time)}`;
+      const schedStart = new Date(schedStartStr);
+      const diffMs = checkInTime.getTime() - schedStart.getTime();
+      if (diffMs > 0) {
+        return Math.floor(diffMs / (60 * 1000));
+      }
+    }
+    return 0;
+  };
+
+  const formatLateMessage = (totalMinutes) => {
+    if (totalMinutes < 60) {
+      return `${totalMinutes} minute${totalMinutes > 1 ? "s" : ""} late`;
+    }
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    const hourText = `${hours} hour${hours > 1 ? "s" : ""}`;
+    const minText = mins > 0 ? ` ${mins} minute${mins > 1 ? "s" : ""}` : "";
+    return `${hourText}${minText} late`;
+  };
 
   async function fetchLocations() {
     try {
@@ -460,7 +502,7 @@ function Attendance({ role, userGuardId, hideHistory }) {
 
       <div className="mt-2">
 
-        <div className="glass-card rounded-2xl p-6 mb-8 ring-1 ring-indigo-200">
+        <div className="glass-card rounded-2xl p-6 mb-8 ring-1 ring-indigo-200 relative z-50">
           <h2 className="text-xl font-semibold mb-4 text-gray-700">
             {isOnDuty ? "🟢 On Duty — Check Out" : "📋 Check In"}
           </h2>
@@ -535,10 +577,9 @@ function Attendance({ role, userGuardId, hideHistory }) {
 
         {!hideHistory && (
           <div className="space-y-4 mt-6">
-            {/* Filters and Actions Bar */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-transparent mb-0">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-transparent mb-4">
               <h3 className="text-lg font-bold text-gray-800">📋 Attendance History</h3>
-              <div className="flex flex-wrap gap-2 w-full md:w-auto">
+              <div className="flex flex-wrap gap-3 w-full md:w-auto">
                 <button
                   onClick={() => setShowFiltersModal(true)}
                   className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
@@ -686,7 +727,25 @@ function Attendance({ role, userGuardId, hideHistory }) {
                         <td className="p-4 font-medium">{item.guards?.name}</td>
                         <td className="p-4 text-gray-500">{item.check_in_time?.split("T")[0] || item.date}</td>
                         <td className="p-4 text-gray-500 text-sm">{item.duty_locations?.place_name || "—"}</td>
-                        <td className="p-4">{item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString() : item.check_in || "—"}</td>
+                        <td className="p-4">
+                          {(() => {
+                            const timeStr = item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString() : item.check_in || "—";
+                            if (role !== "guard") {
+                              const lateMins = getLateMinutes(item);
+                              if (lateMins > 0) {
+                                return (
+                                  <span 
+                                    className="text-red-650"
+                                    title={formatLateMessage(lateMins)}
+                                  >
+                                    {timeStr}
+                                  </span>
+                                );
+                              }
+                            }
+                            return timeStr;
+                          })()}
+                        </td>
                         <td className="p-4">{item.check_out_time ? new Date(item.check_out_time).toLocaleTimeString() : item.check_out || "—"}</td>
                         <td className="p-4">
                           {(() => {
@@ -801,7 +860,23 @@ function Attendance({ role, userGuardId, hideHistory }) {
                         </div>
                         <div>
                           <span className="font-semibold block text-gray-450">Check In:</span>
-                          {item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : item.check_in || "—"}
+                          {(() => {
+                            const timeStr = item.check_in_time ? new Date(item.check_in_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : item.check_in || "—";
+                            if (role !== "guard") {
+                              const lateMins = getLateMinutes(item);
+                              if (lateMins > 0) {
+                                return (
+                                  <span 
+                                    className="text-red-650"
+                                    title={formatLateMessage(lateMins)}
+                                  >
+                                    {timeStr}
+                                  </span>
+                                );
+                              }
+                            }
+                            return timeStr;
+                          })()}
                         </div>
                         <div>
                           <span className="font-semibold block text-gray-450">Check Out:</span>

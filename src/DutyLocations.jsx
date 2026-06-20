@@ -194,7 +194,8 @@ function DutyLocations() {
     setLongitude(loc.longitude.toString());
     setRadius(loc.radius_meters.toString());
     setErrors({});
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const scrollContainer = document.querySelector(".overflow-y-auto") || window;
+    scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function deleteLocation(id) {
@@ -236,7 +237,7 @@ function DutyLocations() {
   return (
     <>
       <ToastContainer />
-      {loading && <LoadingOverlay message="Saving duty location..." />}
+      {loading && <LoadingOverlay message="Saving shift location..." />}
       {showMap && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowMap(false)}>
           <div className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-3xl mx-4" onClick={(e) => e.stopPropagation()}>
@@ -321,7 +322,7 @@ function DutyLocations() {
       <div className="mt-4">
         <div className="glass-card rounded-2xl p-6 mb-8 ring-1 ring-emerald-200">
           <h2 className="text-xl font-semibold mb-4 text-gray-700 font-bold">
-            {editingId ? "✏️ Edit Duty Location" : "📍 Add Duty Location"}
+            {editingId ? "✏️ Edit Shift Location" : "📍 Add Shift Location"}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -401,7 +402,7 @@ function DutyLocations() {
               </thead>
               <tbody>
                 {locations.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-gray-400">No duty locations set.</td></tr>
+                  <tr><td colSpan={5} className="p-8 text-center text-gray-400">No shift locations set.</td></tr>
                 ) : locations.map((loc) => (
                   <tr key={loc.id} className="border-b hover:bg-gray-50 transition">
                     <td className="p-4 font-medium">{loc.place_name}</td>
@@ -425,7 +426,7 @@ function DutyLocations() {
           {/* Mobile list view */}
           <div className="block md:hidden divide-y divide-gray-100">
             {locations.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">No duty locations set.</div>
+              <div className="p-8 text-center text-gray-400">No shift locations set.</div>
             ) : (
               locations.map((loc) => (
                 <div key={loc.id} className="p-4 space-y-2">

@@ -96,7 +96,7 @@ function Users() {
       <div className="mt-10">
         <h1 className="text-2xl font-bold mb-5 text-gray-800">User Management</h1>
 
-        <div className="glass-card rounded-2xl p-6 mb-8 ring-1 ring-cyan-200">
+        <div className="glass-card rounded-2xl p-6 mb-8 ring-1 ring-cyan-200 relative z-50">
           <h2 className="text-xl font-semibold mb-4 text-gray-700">👤 Add New User</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>

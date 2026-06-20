@@ -431,7 +431,8 @@ function Guards({ onGuardAdded }) {
 
     setErrors({});
     setCurrentStep(1);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const scrollContainer = document.querySelector(".overflow-y-auto") || window;
+    scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function cancelEdit() {
@@ -643,7 +644,7 @@ function Guards({ onGuardAdded }) {
       )}
 
       {overrideGuard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-6 w-[500px] shadow-2xl border border-gray-150 max-h-[90vh] overflow-y-auto animate-fade-in">
             <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800">⏱️ Temporary Assignment</h2>
@@ -766,7 +767,7 @@ function Guards({ onGuardAdded }) {
       )}
 
       {selectedShiftGuard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-6 w-[450px] shadow-2xl border border-gray-150 max-h-[90vh] overflow-y-auto animate-fade-in mx-4">
             <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800">📅 Shift & Location Details</h2>
@@ -853,7 +854,7 @@ function Guards({ onGuardAdded }) {
 
       <div className="mt-4 space-y-8">
         {/* ─── ADD / EDIT FORM ─── */}
-        <div className={`glass-card rounded-2xl p-6 transition ${editingId ? "ring-2 ring-blue-300" : "ring-1 ring-green-200"}`}>
+        <div className={`glass-card rounded-2xl p-6 transition relative z-50 ${editingId ? "ring-2 ring-blue-300" : "ring-1 ring-green-200"}`}>
           <h2 className="text-xl font-bold mb-6 text-gray-700">
             {editingId ? "✏️ Edit Guard Profile" : "➕ Add New Guard & Profile Login"}
           </h2>

@@ -35,7 +35,7 @@ function StaffRegistry({ tourTab }) {
           }`}
         >
           <span>📍</span>
-          <span className="hidden sm:inline">Duty Locations</span>
+          <span className="hidden sm:inline">Shift Locations</span>
           <span className="sm:hidden">Locations</span>
         </button>
       </div>

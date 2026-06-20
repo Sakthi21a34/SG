@@ -100,3 +100,38 @@ CREATE POLICY "shifts_insert" ON shifts FOR INSERT WITH CHECK (auth.role() = 'au
 -- shift_timings
 CREATE POLICY "shift_timings_select" ON shift_timings FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "shift_timings_upsert" ON shift_timings FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- ============================================================
+-- 4. Supabase Storage RLS Policies
+-- ============================================================
+
+-- Drop existing storage policies if they exist (safe to re-run)
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Allow public select on guard-photos" ON storage.objects;
+  DROP POLICY IF EXISTS "Allow public insert on guard-photos" ON storage.objects;
+  DROP POLICY IF EXISTS "Allow public delete on guard-photos" ON storage.objects;
+  
+  DROP POLICY IF EXISTS "Allow public select on voice-requests" ON storage.objects;
+  DROP POLICY IF EXISTS "Allow public insert on voice-requests" ON storage.objects;
+  DROP POLICY IF EXISTS "Allow public delete on voice-requests" ON storage.objects;
+  
+  DROP POLICY IF EXISTS "Allow public select on guard-documents" ON storage.objects;
+  DROP POLICY IF EXISTS "Allow public insert on guard-documents" ON storage.objects;
+  DROP POLICY IF EXISTS "Allow public delete on guard-documents" ON storage.objects;
+END $$;
+
+-- Policies for 'guard-photos' bucket
+CREATE POLICY "Allow public select on guard-photos" ON storage.objects FOR SELECT USING (bucket_id = 'guard-photos');
+CREATE POLICY "Allow public insert on guard-photos" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'guard-photos');
+CREATE POLICY "Allow public delete on guard-photos" ON storage.objects FOR DELETE USING (bucket_id = 'guard-photos');
+
+-- Policies for 'voice-requests' bucket
+CREATE POLICY "Allow public select on voice-requests" ON storage.objects FOR SELECT USING (bucket_id = 'voice-requests');
+CREATE POLICY "Allow public insert on voice-requests" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'voice-requests');
+CREATE POLICY "Allow public delete on voice-requests" ON storage.objects FOR DELETE USING (bucket_id = 'voice-requests');
+
+-- Policies for 'guard-documents' bucket
+CREATE POLICY "Allow public select on guard-documents" ON storage.objects FOR SELECT USING (bucket_id = 'guard-documents');
+CREATE POLICY "Allow public insert on guard-documents" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'guard-documents');
+CREATE POLICY "Allow public delete on guard-documents" ON storage.objects FOR DELETE USING (bucket_id = 'guard-documents');
+

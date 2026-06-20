@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, Suspense } from "react";
 import { supabase } from "./lib/supabase";
 import Camera from "./Camera";
 import { calcDistance, getLocation, uploadPhoto, calculateAttendanceStatus } from "./lib/geoUtils";
 import Notifications from "./Notifications";
-import Incidents from "./Incidents";
+
+const Incidents = React.lazy(() => import("./Incidents"));
 import { addToQueue, getQueue, removeFromQueue, setCached, getCached } from "./lib/offlineDb";
 import { useToast } from "./Toast";
 import { useLanguage } from "./LanguageContext";
@@ -1452,7 +1453,16 @@ function GuardDuty({ guardId, guardName }) {
   const content = {
     duty: dutyPanel,
     history: historyPanel,
-    incidents: <Incidents role="guard" guardId={guardId} />,
+    incidents: (
+      <Suspense fallback={
+        <div className="flex flex-col items-center justify-center py-20 text-slate-500 font-semibold gap-3 bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+          <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+          <span className="text-xs">Loading Incidents...</span>
+        </div>
+      }>
+        <Incidents role="guard" guardId={guardId} />
+      </Suspense>
+    ),
     circulars: (
       <div className="space-y-4">
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5">
