@@ -171,7 +171,6 @@ function Login({ setSession }) {
 
             <div className="mb-6 md:mb-10 text-center shrink-0">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight flex items-center justify-center gap-2">Welcome Back <span className="inline-block scale-x-[-1]">👋</span></h2>
-              <p className="text-gray-500 mt-1 md:mt-2 text-sm md:text-base">Please sign in to your account</p>
             </div>
 
             <div className="space-y-4 md:space-y-5">
