@@ -121,7 +121,7 @@ function Login({ setSession }) {
           <div className="w-full max-w-md mx-auto">
 
             <div className="mb-10 text-center md:text-left">
-              <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Welcome Back</h2>
+              <h2 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center justify-center md:justify-start gap-2">Welcome Back <span className="inline-block scale-x-[-1]">👋</span></h2>
               <p className="text-gray-500 mt-2">Please sign in to your account</p>
             </div>
 
@@ -134,7 +134,7 @@ function Login({ setSession }) {
                   </div>
                   <input
                     type="email"
-                    placeholder="admin@example.com"
+                    placeholder="enter your email"
                     className={`w-full h-12 border rounded-xl pl-11 pr-4 text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
                       errors.email ? "border-red-300 focus:ring-red-500/20" : "border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
                     }`}
@@ -154,7 +154,7 @@ function Login({ setSession }) {
                   </div>
                   <input
                     type="password"
-                    placeholder="••••••••"
+                    placeholder="password"
                     className={`w-full h-12 border rounded-xl pl-11 pr-4 text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
                       errors.password ? "border-red-300 focus:ring-red-500/20" : "border-gray-200 focus:border-blue-500 focus:ring-blue-500/20"
                     }`}
