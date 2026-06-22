@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "./lib/supabase";
 import { useToast } from "./Toast";
 import LoadingOverlay from "./LoadingOverlay";
@@ -12,7 +12,34 @@ function Login({ setSession }) {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [isMobileFormCollapsed, setIsMobileFormCollapsed] = useState(false);
+  const touchStartY = useRef(null);
   const { showToast, ToastContainer } = useToast();
+
+  const handleTouchStart = (e) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStartY.current) return;
+    const touchEndY = e.touches[0].clientY;
+    const diff = touchEndY - touchStartY.current;
+    
+    // swipe down
+    if (diff > 50) {
+      setIsMobileFormCollapsed(true);
+      touchStartY.current = null;
+    }
+    // swipe up
+    if (diff < -50) {
+      setIsMobileFormCollapsed(false);
+      touchStartY.current = null;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartY.current = null;
+  };
 
   function validate() {
     const errs = {};
@@ -91,16 +118,28 @@ function Login({ setSession }) {
           <div className="absolute bottom-[60%] left-8 text-purple-500/10 text-3xl -rotate-12"><FaShieldAlt /></div>
         </div>
 
-        {/* Mobile Top Visuals */}
-        <div className="md:hidden flex flex-col items-center justify-center pt-6 pb-6 relative z-10 shrink-0">
+        {/* Mobile Top Visuals & Background Text */}
+        <div className="md:hidden flex flex-col items-center justify-start pt-8 px-6 relative z-10 shrink-0">
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none flex items-center justify-center">
             {/* Glowing radial light behind logo */}
-            <div className="w-24 h-24 rounded-full bg-purple-500/30 blur-[40px] absolute"></div>
+            <div className="w-24 h-24 rounded-full bg-purple-500/30 blur-[40px] absolute top-12"></div>
           </div>
-          <div className="w-16 h-16 rounded-xl overflow-hidden bg-white shadow-xl shadow-black/20 flex items-center justify-center mb-2 p-1 z-10 relative">
-            <img src={appLogo} alt="SecureSys Logo" className="w-full h-full object-cover rounded-[0.55rem]" />
+          <div className="flex flex-col items-center justify-center relative z-20">
+            <div className="w-16 h-16 rounded-[1.25rem] overflow-hidden bg-white shadow-xl shadow-black/10 flex items-center justify-center mb-3 p-1">
+              <img src={appLogo} alt="SecureSys Logo" className="w-full h-full object-cover rounded-[0.8rem]" />
+            </div>
+            <h2 className="text-[22px] font-bold text-white tracking-widest">SecureSys</h2>
           </div>
-          <h2 className="text-xl font-bold text-white tracking-widest z-10 relative">SecureSys</h2>
+          
+          {/* Background Text Revealed on Swipe */}
+          <div className={`mt-8 text-center transition-opacity duration-500 ease-in-out ${isMobileFormCollapsed ? "opacity-100" : "opacity-0"}`}>
+            <h1 className="text-3xl font-bold text-white leading-tight mb-4 tracking-tight">
+              Secure, Monitor,<br />and Manage <span className="text-indigo-400">Facilities.</span>
+            </h1>
+            <p className="text-slate-400 text-sm leading-relaxed px-4">
+              Enterprise-grade security management platform tailored for modern workforce monitoring.
+            </p>
+          </div>
         </div>
 
         {/* Desktop Left Side: Brand & Visuals */}
@@ -152,25 +191,31 @@ function Login({ setSession }) {
         </div>
 
         {/* Right Side: Login Form */}
-        <div className="flex-1 flex flex-col justify-start md:justify-center px-6 pt-6 pb-6 md:p-16 md:bg-slate-50 bg-white rounded-t-[32px] md:rounded-none relative z-20 shadow-[0_-15px_40px_rgba(0,0,0,0.3)] md:shadow-none animate-slide-up border-t border-white/40 md:border-none">
+        <div 
+          className={`flex-1 md:flex flex-col justify-center px-6 pt-6 pb-6 md:p-16 md:bg-slate-50 bg-white rounded-t-[40px] md:rounded-none absolute md:relative bottom-0 left-0 w-full z-20 shadow-[0_-15px_40px_rgba(0,0,0,0.2)] md:shadow-none animate-slide-up border-t border-white/40 md:border-none transition-transform duration-500 ease-in-out max-md:h-[calc(100dvh-190px)] md:h-full md:translate-y-0 ${isMobileFormCollapsed ? "max-md:translate-y-[65%]" : "max-md:translate-y-0"}`}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
 
-          <div className="w-full max-w-md mx-auto md:bg-white md:p-10 md:rounded-[2rem] md:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] md:border md:border-slate-100 relative h-full flex flex-col justify-center">
+          {/* Drag Handle for Mobile */}
+          <div 
+            className="md:hidden w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-6 cursor-pointer shrink-0"
+            onClick={() => setIsMobileFormCollapsed(!isMobileFormCollapsed)}
+          ></div>
+
+          <div className="w-full max-w-[380px] mx-auto md:bg-white md:p-8 md:rounded-[2rem] md:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] md:border md:border-slate-100 relative flex flex-col justify-center h-full md:h-max md:my-auto">
 
             {/* Desktop Lock Icon */}
             <div className="hidden md:flex w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 items-center justify-center mx-auto mb-6 shrink-0">
-              <FaLock className="text-2xl" />
+              <FaShieldAlt className="text-2xl" />
             </div>
 
-            {/* Mobile Logo */}
-            <div className="md:hidden hidden flex-col items-center mb-6 shrink-0">
-              <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white shadow-lg flex items-center justify-center mb-4 p-1">
-                <img src={appLogo} alt="SecureSys Logo" className="w-full h-full object-cover rounded-xl" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 tracking-tight">SecureSys</h2>
-            </div>
+            {/* Mobile Logo Block - Removed because we display it above the card */}
 
-            <div className="mb-6 md:mb-10 text-center shrink-0">
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight flex items-center justify-center gap-2">Welcome Back <span className="inline-block scale-x-[-1]">👋</span></h2>
+            <div className="mb-8 md:mb-10 text-center shrink-0">
+              <h2 className="text-[28px] md:text-3xl font-extrabold text-[#1A1F2C] tracking-tight flex items-center justify-center gap-2 mb-2">Welcome Back <span className="inline-block">👋</span></h2>
+              <p className="text-gray-500 text-sm md:text-base font-medium">Please sign in to your account</p>
             </div>
 
             <div className="space-y-4 md:space-y-5">
@@ -219,19 +264,13 @@ function Login({ setSession }) {
                 {errors.password && <p className="text-red-500 text-xs font-medium mt-1">{errors.password}</p>}
               </div>
 
-              <div className="flex items-center justify-between pb-1 md:pb-2">
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <input type="checkbox" className="w-3.5 h-3.5 md:w-4 md:h-4 rounded text-purple-600 focus:ring-purple-500 border-gray-300 transition-all cursor-pointer" />
-                  <span className="text-[11px] md:text-xs font-medium text-gray-600 group-hover:text-gray-900 transition">Remember Me</span>
-                </label>
-                <a href="#" onClick={(e) => e.preventDefault()} className="text-[11px] md:text-xs font-semibold text-purple-600 hover:text-purple-700 transition">Forgot Password?</a>
-              </div>
 
-              <div className="pt-1">
+
+              <div className="pt-2">
                 <button
                   onClick={handleLogin}
                   disabled={loading}
-                  className={`w-full h-12 md:h-12 rounded-xl text-white font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-lg ${loading ? "bg-slate-400 cursor-not-allowed shadow-none" : "bg-gradient-to-r from-[#6C4CF1] to-[#7F5CFF] hover:shadow-purple-500/40 hover:-translate-y-0.5 active:translate-y-0"
+                  className={`w-full h-12 md:h-12 rounded-xl text-white font-bold text-[15px] transition-all duration-200 flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(76,59,252,0.25)] ${loading ? "bg-slate-400 cursor-not-allowed shadow-none" : "bg-[#4C3BFC] hover:bg-[#4332e6] hover:-translate-y-0.5 active:translate-y-0"
                     }`}
                 >
                   {loading ? (
@@ -240,14 +279,12 @@ function Login({ setSession }) {
                       Signing in...
                     </>
                   ) : (
-                    <>
-                      <FaArrowRight /> Sign In
-                    </>
+                    "Sign In"
                   )}
                 </button>
               </div>
 
-              <div className="pt-4 flex justify-center items-center gap-1.5 opacity-80 shrink-0">
+              <div className="pt-6 md:pt-4 pb-4 md:pb-0 flex justify-center items-center gap-1.5 opacity-80 shrink-0">
                 <FaCheckCircle className="text-green-500 text-[10px]" />
                 <span className="text-[9px] md:text-[10px] font-semibold tracking-wide text-slate-500">All Rights Reserved 2026</span>
               </div>
