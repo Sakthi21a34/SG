@@ -1024,8 +1024,18 @@ function Guards({ onGuardAdded, onNavigate }) {
           {currentStep === 2 && (
             <div className="space-y-5 animate-fade-in">
               <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-5 md:p-6 space-y-6">
-                <div>
+                <div onClickCapture={() => {
+                  if (locations.length === 0) {
+                    showToast("No locations available. Please create a location first.", "info");
+                  }
+                }}>
                   <p className="block text-[11px] font-bold text-slate-650 uppercase tracking-wider mb-2">🏠 Primary Fixed Location</p>
+                  {locations.length === 0 && (
+                    <div className="mb-3 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl text-xs flex items-center gap-2 shadow-sm animate-fade-in">
+                      <span className="text-base">ℹ️</span>
+                      <span className="font-medium">No locations available. Please create a location first.</span>
+                    </div>
+                  )}
                   <CustomSelect
                     value={dutyLocationId}
                     onChange={val => { setDutyLocationId(val); clearError("dutyLocationId"); }}
@@ -1135,6 +1145,9 @@ function Guards({ onGuardAdded, onNavigate }) {
               {currentStep < 3 ? (
                 <button type="button" onClick={() => {
                   if (currentStep === 1 && !validateStep1()) return;
+                  if (currentStep === 1 && locations.length === 0) {
+                    showToast("No locations available. Please create a location first.", "info");
+                  }
                   setCurrentStep(currentStep + 1);
                 }}
                   className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all duration-300 text-xs shadow-md shadow-blue-150 flex items-center gap-1.5">
