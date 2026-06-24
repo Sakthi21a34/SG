@@ -1171,7 +1171,7 @@ function Analytics({ role, onNavigate }) {
       {/* ─── PERFORMANCE TAB ─── */}
       {isAdmin && activeTab === "performance" && (
         <div className="space-y-6">
-          <div className="glass-card rounded-2xl p-6 relative z-35">
+          <div className="glass-card rounded-2xl p-6 relative z-40">
             <h3 className="text-lg font-bold text-gray-800 mb-4">👮 Guard Performance Scorecard</h3>
             <div className="w-full max-w-sm">
               <label className="block text-xs font-semibold text-gray-400 uppercase mb-1.5">Select Guard Profile</label>
@@ -1247,7 +1247,7 @@ function Analytics({ role, onNavigate }) {
       {/* ─── PATROL HISTORY TAB ─── */}
       {isAdmin && activeTab === "patrol" && (
         <div className="space-y-6">
-          <div className="glass-card rounded-2xl p-6 relative z-35">
+          <div className="glass-card rounded-2xl p-6 relative z-40">
             <h3 className="text-lg font-bold text-gray-800 mb-4">🗺️ Guard Patrol History Track</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
@@ -1375,7 +1375,7 @@ function Analytics({ role, onNavigate }) {
       {/* ─── ATTENDANCE TAB ─── */}
       {isAdmin && activeTab === "attendance" && (
         <div className="space-y-6">
-          <div className="glass-card rounded-2xl p-6 relative z-35">
+          <div className="glass-card rounded-2xl p-6 relative z-40">
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
               <h3 className="text-lg font-bold text-gray-800">📋 Shift & Attendance Logs</h3>
               <div className="flex gap-2">
