@@ -190,7 +190,7 @@ function Incidents({ role, guardId: currentGuardId }) {
       const response = await fetch("/api/sambanova/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer e760c588-2e29-4aa8-9c58-b0d3fb30d166",
+          "Authorization": `Bearer ${import.meta.env.VITE_SAMBANOVA_KEY}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
